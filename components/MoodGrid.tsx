@@ -1,169 +1,190 @@
 'use client'
 
-import { useState } from 'react'
+import DailySummaryRadarChart, {
+  type DailySummary,
+} from '@/components/DailySummaryRadarChart'
+import { DailyEntry, ENERGY_LABELS, STRESS_LABELS, formatShortDate } from '@/components/checkInData'
 
-type View = 'week' | 'month' | 'year'
-
-const MOOD_COLORS: Record<number, string> = {
-  0: 'bg-gray-700',
-  1: 'bg-blue-500',
-  2: 'bg-purple-500',
-  3: 'bg-red-500',
-  4: 'bg-orange-400',
-  5: 'bg-yellow-400',
+interface MoodGridProps {
+  entries: Record<string, DailyEntry>
 }
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function average(values: number[]) {
+  if (!values.length) {
+    return 0
+  }
 
-// Deterministic pseudo-random mood from date
-function getMood(date: Date): number {
-  const seed = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
-  return ((seed * 1103515245 + 12345) >>> 0) % 6
+  return values.reduce((total, value) => total + value, 0) / values.length
 }
 
-function isFuture(date: Date): boolean {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
-  return date > today
+function moodTone(score: number) {
+  if (score >= 4) return 'bg-emerald-300'
+  if (score >= 3) return 'bg-amber-200'
+  if (score >= 2) return 'bg-rose-200'
+  return 'bg-rose-300'
 }
 
-// Monday-based day index: 0=Mon … 6=Sun
-function monDayIndex(date: Date): number {
-  return (date.getDay() + 6) % 7
+function toTenPointScore(value: number, max: number) {
+  return Math.round((value / max) * 10)
 }
 
-function Cell({ date, size }: { date: Date; size: 'sm' | 'md' | 'lg' }) {
-  const future = isFuture(date)
-  const mood = future ? 0 : getMood(date)
-  const sizeClass = size === 'lg' ? 'w-10 h-10 rounded-lg' : size === 'md' ? 'w-8 h-8 rounded-md' : 'w-4 h-4 rounded-sm'
+function sleepScore(value: DailyEntry['sleep']) {
+  if (value === 'Good') return 8
+  if (value === 'Okay') return 5
+  return 2
+}
+
+function buildDailySummary(entry: DailyEntry): DailySummary {
+  return {
+    date: entry.date,
+    scores: {
+      mood: toTenPointScore(entry.feeling, 4),
+      energy: toTenPointScore(entry.energy, 5),
+      sleep: sleepScore(entry.sleep),
+      stress: toTenPointScore(entry.stress, 5),
+      pain: entry.painLevel ?? 0,
+      appetite: 0,
+      activity: toTenPointScore(ACTIVITY_SCORE_MAP[entry.activity], 5),
+      social: 0,
+    },
+  }
+}
+
+const ACTIVITY_SCORE_MAP: Record<DailyEntry['activity'], number> = {
+  Sedentary: 1,
+  'Not very': 2,
+  Light: 3,
+  Moderate: 4,
+  'Very active': 5,
+}
+
+function InsightCard({
+  label,
+  value,
+  caption,
+}: {
+  label: string
+  value: string
+  caption: string
+}) {
   return (
-    <div
-      className={`${sizeClass} ${MOOD_COLORS[mood]} ${future ? 'opacity-20' : ''} transition-opacity`}
-      title={date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-    />
+    <article className="rounded-[1.5rem] border border-stone-200 bg-white p-5">
+      <p className="text-sm text-stone-500">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-stone-900">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-stone-500">{caption}</p>
+    </article>
   )
 }
 
-function WeekView() {
-  const today = new Date()
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() - 6 + i)
-    return d
-  })
+export default function MoodGrid({ entries }: MoodGridProps) {
+  const allEntries = Object.values(entries).sort((a, b) => a.date.localeCompare(b.date))
+
+  if (!allEntries.length) {
+    return (
+      <section className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(190,198,189,0.35)] backdrop-blur-xl">
+        <p className="text-sm uppercase tracking-[0.2em] text-stone-400">Summary</p>
+        <h2 className="mt-4 text-2xl font-semibold text-stone-900">No trends yet</h2>
+        <p className="mt-3 max-w-lg text-stone-500">
+          Once check-ins are saved, this view will highlight patterns across mood, stress,
+          sleep, and activity.
+        </p>
+      </section>
+    )
+  }
+
+  const averageFeeling = average(allEntries.map((entry) => entry.feeling))
+  const averageStress = average(allEntries.map((entry) => entry.stress))
+  const averageEnergy = average(allEntries.map((entry) => entry.energy))
+  const medicationTakenDays = allEntries.filter((entry) => entry.medication === 'Yes').length
+  const bestEnergyDay = [...allEntries].sort((a, b) => b.energy - a.energy)[0]
+  const latestSummary = buildDailySummary(allEntries.at(-1)!)
 
   return (
-    <div className="flex gap-3 justify-center">
-      {days.map((date, i) => (
-        <div key={i} className="flex flex-col items-center gap-2">
-          <span className="text-xs text-gray-500">
-            {date.toLocaleDateString('en-US', { weekday: 'short' })}
-          </span>
-          <Cell date={date} size="lg" />
-          <span className="text-xs text-gray-500">{date.getDate()}</span>
+    <section className="space-y-6">
+      <DailySummaryRadarChart summary={latestSummary} />
+
+      <div className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_24px_80px_rgba(190,198,189,0.35)] backdrop-blur-xl sm:p-8">
+        <p className="text-sm uppercase tracking-[0.2em] text-stone-400">Summary</p>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Daily trends at a glance</h2>
+            <p className="mt-2 max-w-2xl text-stone-500">
+              This view turns each saved check-in into quick signals that are easier to review
+              over time.
+            </p>
+          </div>
+          <div className="rounded-full bg-stone-100 px-4 py-2 text-sm text-stone-500">
+            {allEntries.length} total {allEntries.length === 1 ? 'check-in' : 'check-ins'}
+          </div>
         </div>
-      ))}
-    </div>
-  )
-}
 
-function MonthView() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const startOffset = monDayIndex(new Date(year, month, 1))
-
-  const cells: (number | null)[] = [
-    ...Array(startOffset).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ]
-  while (cells.length % 7 !== 0) cells.push(null)
-
-  return (
-    <div>
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {DAY_LABELS.map((d) => (
-          <div key={d} className="text-center text-xs text-gray-500">{d}</div>
-        ))}
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <InsightCard
+            label="Average feeling"
+            value={averageFeeling.toFixed(1)}
+            caption="A simple mood average based on the daily feeling question."
+          />
+          <InsightCard
+            label="Average energy"
+            value={averageEnergy.toFixed(1)}
+            caption={`Most recent energy label: ${ENERGY_LABELS[allEntries.at(-1)!.energy - 1]}.`}
+          />
+          <InsightCard
+            label="Average stress"
+            value={averageStress.toFixed(1)}
+            caption={`Most recent stress label: ${STRESS_LABELS[allEntries.at(-1)!.stress - 1]}.`}
+          />
+          <InsightCard
+            label="Medication taken"
+            value={`${medicationTakenDays}/${allEntries.length}`}
+            caption="Counts the number of days marked yes for medication adherence."
+          />
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) =>
-          day === null ? (
-            <div key={i} className="w-8 h-8" />
-          ) : (
-            <div key={i} className="flex flex-col items-center gap-0.5">
-              <Cell date={new Date(year, month, day)} size="md" />
-              <span className="text-xs text-gray-600">{day}</span>
-            </div>
-          )
-        )}
-      </div>
-    </div>
-  )
-}
 
-function YearView() {
-  const year = new Date().getFullYear()
+      <div className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_24px_80px_rgba(190,198,189,0.25)] backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-stone-900">Mood timeline</p>
+            <p className="text-sm text-stone-500">Each tile represents a saved day.</p>
+          </div>
+          <div className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-stone-500">
+            Best energy day: {formatShortDate(bestEnergyDay.date)}
+          </div>
+        </div>
 
-  return (
-    <div className="overflow-x-auto">
-      <div className="flex flex-col gap-1.5 min-w-max">
-        {MONTH_LABELS.map((label, monthIndex) => {
-          const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
-          return (
-            <div key={monthIndex} className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-500 w-7 shrink-0">{label}</span>
-              <div className="flex gap-0.5">
-                {Array.from({ length: daysInMonth }, (_, i) => (
-                  <Cell key={i} date={new Date(year, monthIndex, i + 1)} size="sm" />
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-export default function MoodGrid() {
-  const [view, setView] = useState<View>('month')
-
-  return (
-    <div className="bg-gray-900 rounded-2xl p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <span className="text-white text-sm font-medium">Mood History</span>
-        <div className="flex gap-1 bg-white/5 rounded-lg p-1">
-          {(['week', 'month', 'year'] as View[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors capitalize ${
-                view === v ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
-              }`}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {allEntries.map((entry) => (
+            <article
+              key={entry.date}
+              className="rounded-[1.35rem] border border-stone-200 bg-white p-4"
             >
-              {v}
-            </button>
+              <div className={`h-2 rounded-full ${moodTone(entry.feeling)}`} />
+              <p className="mt-4 text-sm font-semibold text-stone-900">
+                {formatShortDate(entry.date)}
+              </p>
+              <dl className="mt-3 space-y-2 text-sm text-stone-500">
+                <div className="flex items-center justify-between gap-3">
+                  <dt>Feeling</dt>
+                  <dd>{entry.feeling}/4</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt>Energy</dt>
+                  <dd>{entry.energy}/5</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt>Stress</dt>
+                  <dd>{entry.stress}/5</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt>Sleep</dt>
+                  <dd>{entry.sleep}</dd>
+                </div>
+              </dl>
+            </article>
           ))}
         </div>
       </div>
-
-      {view === 'week' && <WeekView />}
-      {view === 'month' && <MonthView />}
-      {view === 'year' && <YearView />}
-
-      {/* Legend */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-gray-600">Mood</span>
-        {Object.entries(MOOD_COLORS).map(([score, color]) => (
-          <div key={score} className="flex items-center gap-1">
-            <div className={`w-3 h-3 rounded-sm ${color}`} />
-            <span className="text-xs text-gray-600">{score === '0' ? 'none' : score}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    </section>
   )
 }
