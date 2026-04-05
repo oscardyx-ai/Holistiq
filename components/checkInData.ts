@@ -6,6 +6,14 @@ export type ActivityLevel =
   | 'Moderate'
   | 'Very active'
 export type MedicationStatus = 'Yes' | 'No' | 'Not applicable'
+export type TrackedFactor =
+  | 'Feeling'
+  | 'Energy'
+  | 'Sleep'
+  | 'Pain'
+  | 'Stress'
+  | 'Activity'
+  | 'Medication'
 
 export interface DailyEntry {
   date: string
@@ -40,12 +48,31 @@ export const ACTIVITY_OPTIONS: ActivityLevel[] = [
 ]
 export const MEDICATION_OPTIONS: MedicationStatus[] = ['Yes', 'No', 'Not applicable']
 
-export function getTodayKey() {
-  return new Date().toISOString().slice(0, 10)
+function formatDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  return new Date(year, month - 1, day, 12)
+}
+
+export function getTodayKey(date = new Date()) {
+  return formatDateKey(date)
+}
+
+export function getYesterdayKey(date = new Date()) {
+  const previousDay = new Date(date)
+  previousDay.setDate(previousDay.getDate() - 1)
+  return formatDateKey(previousDay)
 }
 
 export function formatLongDate(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`)
+  const date = parseDateKey(dateKey)
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -55,11 +82,134 @@ export function formatLongDate(dateKey: string) {
 }
 
 export function formatShortDate(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`)
+  const date = parseDateKey(dateKey)
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   })
+}
+
+export function getMonthLabel(dateKey: string) {
+  return parseDateKey(dateKey).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+export function getGreetingForDate(date = new Date()) {
+  const hour = date.getHours()
+
+  if (hour < 12) {
+    return 'Good morning'
+  }
+
+  if (hour < 17) {
+    return 'Good afternoon'
+  }
+
+  return 'Good evening'
+}
+
+export function readEntriesFromStorage() {
+  if (typeof window === 'undefined') {
+    return {} as Record<string, DailyEntry>
+  }
+
+  const raw = window.localStorage.getItem(STORAGE_KEY)
+
+  if (!raw) {
+    return {} as Record<string, DailyEntry>
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, DailyEntry>
+  } catch {
+    return {} as Record<string, DailyEntry>
+  }
+}
+
+export function writeEntriesToStorage(entries: Record<string, DailyEntry>) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+}
+
+export function getSortedDateKeys(entries: Record<string, DailyEntry>) {
+  return Object.keys(entries).sort((a, b) => b.localeCompare(a))
+}
+
+export function cloneEntryForDate(entry: DailyEntry, date: string): DailyEntry {
+  return {
+    ...entry,
+    date,
+    completedAt: new Date().toISOString(),
+  }
+}
+
+export function getYesterdayEntry(entries: Record<string, DailyEntry>, todayKey = getTodayKey()) {
+  const yesterdayKey = getYesterdayKey(parseDateKey(todayKey))
+  return entries[yesterdayKey]
+}
+
+export function getMonthlyEntries(entries: Record<string, DailyEntry>, referenceKey = getTodayKey()) {
+  const monthPrefix = referenceKey.slice(0, 7)
+
+  return Object.values(entries)
+    .filter((entry) => entry.date.startsWith(monthPrefix))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export function getMonthlyGrowth(entries: Record<string, DailyEntry>, referenceKey = getTodayKey()) {
+  const referenceDate = parseDateKey(referenceKey)
+  const completedEntries = getMonthlyEntries(entries, referenceKey)
+  const daysInMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    0
+  ).getDate()
+  const progress = completedEntries.length / daysInMonth
+  const stage = Math.min(5, Math.floor(progress * 6))
+
+  return {
+    completedEntries,
+    completedDays: completedEntries.length,
+    daysInMonth,
+    progress,
+    stage,
+    monthLabel: getMonthLabel(referenceKey),
+  }
+}
+
+export function getConsecutiveStreak(
+  entries: Record<string, DailyEntry>,
+  referenceKey = getTodayKey()
+) {
+  if (!Object.keys(entries).length) {
+    return 0
+  }
+
+  let streak = 0
+  let cursor = parseDateKey(referenceKey)
+  const yesterdayKey = getYesterdayKey(parseDateKey(referenceKey))
+
+  if (!entries[referenceKey] && entries[yesterdayKey]) {
+    cursor = parseDateKey(yesterdayKey)
+  }
+
+  while (true) {
+    const key = formatDateKey(cursor)
+
+    if (!entries[key]) {
+      break
+    }
+
+    streak += 1
+    cursor.setDate(cursor.getDate() - 1)
+  }
+
+  return streak
 }
 
 export function emptyEntry(date: string): DailyEntry {

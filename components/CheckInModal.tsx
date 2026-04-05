@@ -327,7 +327,7 @@ export default function CheckInModal({
             onClick={isLastStep ? handleSave : () => setStep((prev) => prev + 1)}
             className="rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-stone-900/10 transition hover:-translate-y-0.5 hover:bg-stone-800"
           >
-            {isLastStep ? 'Save today’s check-in' : 'Continue'}
+            {isLastStep ? "Save today's check-in" : 'Continue'}
           </button>
         </div>
       </div>
