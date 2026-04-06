@@ -2,46 +2,37 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import LogoWordmark from '@/components/LogoWordmark'
 import {
-  ACTIVITY_OPTIONS,
-  DailyEntry,
-  ENERGY_LABELS,
-  FEELING_OPTIONS,
-  MEDICATION_OPTIONS,
-  SLEEP_OPTIONS,
-  STRESS_LABELS,
-  cloneEntryForDate,
-  emptyEntry,
+  AnswerValue,
+  CheckInPeriod,
+  FACTOR_CONFIG,
+  QuestionDefinition,
+  SubstanceUseAnswer,
+  copyPreviousAnswers,
+  createEmptyAnswers,
   formatLongDate,
+  getPeriodLabel,
+  getQuestionsForPeriod,
   getTodayKey,
-  getYesterdayEntry,
-  readEntriesFromStorage,
-  writeEntriesToStorage,
+  readWellnessState,
+  saveSession,
+  writeWellnessState,
 } from '@/components/checkInData'
 
-type QuestionStep =
-  | {
-      key: 'feeling' | 'sleep' | 'activity' | 'medication'
-      eyebrow: string
-      title: string
-      description: string
-      kind: 'choice'
-      options: Array<{ label: string; value: string | number; emoji?: string }>
-      columns: string
-    }
-  | {
-      key: 'energy' | 'painLevel' | 'stress'
-      eyebrow: string
-      title: string
-      description: string
-      kind: 'slider'
-      min: number
-      max: number
-      labels?: readonly string[]
-    }
+function getChoiceColumns(count: number) {
+  if (count <= 2) {
+    return 'sm:grid-cols-2'
+  }
+
+  if (count === 3) {
+    return 'sm:grid-cols-3'
+  }
+
+  return 'sm:grid-cols-2'
+}
 
 function ChoiceGrid({
   options,
@@ -49,31 +40,28 @@ function ChoiceGrid({
   value,
   columns,
 }: {
-  options: Array<{ label: string; value: string | number; emoji?: string }>
-  onSelect: (value: string | number) => void
-  value: string | number
+  options: string[]
+  onSelect: (value: string) => void
+  value: string
   columns: string
 }) {
   return (
     <div className={`grid gap-3 ${columns}`}>
       {options.map((option) => {
-        const selected = option.value === value
+        const selected = option === value
 
         return (
           <button
-            key={String(option.value)}
+            key={option}
             type="button"
-            onClick={() => onSelect(option.value)}
-            className={`rounded-[1.6rem] border px-4 py-5 text-left transition-all duration-200 ${
+            onClick={() => onSelect(option)}
+            className={`rounded-[1.5rem] border px-4 py-5 text-left transition ${
               selected
                 ? 'border-[#6b8f56] bg-[#6b8f56] text-white shadow-[0_12px_24px_rgba(107,143,86,0.22)]'
                 : 'border-[#e8e1d3] bg-white text-stone-700 hover:-translate-y-0.5 hover:border-[#d2c6b0]'
             }`}
           >
-            <div className="flex items-center gap-3">
-              {option.emoji ? <span className="text-2xl">{option.emoji}</span> : null}
-              <span className="text-base font-semibold">{option.label}</span>
-            </div>
+            <span className="text-base font-semibold">{option}</span>
           </button>
         )
       })}
@@ -82,27 +70,24 @@ function ChoiceGrid({
 }
 
 function SliderStep({
+  question,
   value,
-  min,
-  max,
-  labels,
   onChange,
 }: {
+  question: Extract<QuestionDefinition, { kind: 'slider' }>
   value: number
-  min: number
-  max: number
-  labels?: readonly string[]
   onChange: (value: number) => void
 }) {
-  const percentage = ((value - min) / (max - min)) * 100
+  const percentage = ((value - question.min) / Math.max(1, question.max - question.min)) * 100
 
   return (
     <div className="space-y-6">
       <div className="rounded-[1.7rem] bg-[#f7f2e7] p-6">
         <input
           type="range"
-          min={min}
-          max={max}
+          min={question.min}
+          max={question.max}
+          step={1}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           className="h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#6b8f56]"
@@ -110,24 +95,153 @@ function SliderStep({
             background: `linear-gradient(90deg, #6b8f56 ${percentage}%, #ded3bf ${percentage}%)`,
           }}
         />
-        <div className="mt-4 flex items-center justify-between text-xs text-stone-400">
-          <span>{min}</span>
-          <span>{max}</span>
+
+        <div className="mt-5 grid gap-2" style={{ gridTemplateColumns: `repeat(${question.ticks.length}, minmax(0, 1fr))` }}>
+          {question.ticks.map((tickLabel, index) => {
+            const tickValue = question.min + index
+            const selected = tickValue === value
+
+            return (
+              <button
+                key={tickLabel}
+                type="button"
+                onClick={() => onChange(tickValue)}
+                className={`rounded-xl border px-1 py-2 text-xs font-semibold transition ${
+                  selected
+                    ? 'border-[#6b8f56] bg-[#eef5e5] text-[#456246]'
+                    : 'border-[#e6dccd] bg-white text-stone-500'
+                }`}
+              >
+                {tickLabel}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      <div className="flex items-end justify-between gap-4 rounded-[1.7rem] border border-[#ece5d9] bg-white px-5 py-4">
-        <div>
-          <p className="text-sm text-stone-500">Current answer</p>
-          <p className="font-display mt-1 text-3xl text-stone-900">{value}</p>
+      <div className="rounded-[1.6rem] border border-[#ece5d9] bg-white px-5 py-4">
+        <p className="text-sm text-stone-500">Selected value</p>
+        <p className="font-display mt-2 text-4xl text-stone-900">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function MultiSelectStep({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[]
+  value: string[]
+  onChange: (nextValue: string[]) => void
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {options.map((option) => {
+        const selected = value.includes(option)
+
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() =>
+              onChange(
+                selected ? value.filter((item) => item !== option) : [...value, option]
+              )
+            }
+            className={`rounded-[1.5rem] border px-4 py-5 text-left transition ${
+              selected
+                ? 'border-[#6b8f56] bg-[#eef5e5] text-[#456246]'
+                : 'border-[#e8e1d3] bg-white text-stone-700'
+            }`}
+          >
+            <span className="text-base font-semibold">{option}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function SubstanceStep({
+  question,
+  value,
+  onChange,
+}: {
+  question: Extract<QuestionDefinition, { kind: 'substance_use' }>
+  value: SubstanceUseAnswer
+  onChange: (nextValue: SubstanceUseAnswer) => void
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6f8e58]">
+          Select all that apply
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {question.options.map((option) => {
+            const selected = value.substances.includes(option)
+
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    substances: selected
+                      ? value.substances.filter((item) => item !== option)
+                      : [...value.substances, option],
+                  })
+                }
+                className={`rounded-[1.5rem] border px-4 py-5 text-left transition ${
+                  selected
+                    ? 'border-[#6b8f56] bg-[#eef5e5] text-[#456246]'
+                    : 'border-[#e8e1d3] bg-white text-stone-700'
+                }`}
+              >
+                <span className="text-base font-semibold">{option}</span>
+              </button>
+            )
+          })}
         </div>
-        {labels ? (
-          <p className="max-w-44 text-right text-sm leading-6 text-stone-500">
-            {labels[value - min]}
-          </p>
-        ) : (
-          <p className="text-sm text-stone-500">Slide when you&apos;re ready, then continue.</p>
-        )}
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6f8e58]">
+          Frequency
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {question.frequencyOptions.map((option) => {
+            const selected = option === value.frequency
+
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onChange({ ...value, frequency: option })}
+                className={`rounded-[1.5rem] border px-4 py-5 text-left transition ${
+                  selected
+                    ? 'border-[#6b8f56] bg-[#eef5e5] text-[#456246]'
+                    : 'border-[#e8e1d3] bg-white text-stone-700'
+                }`}
+              >
+                <span className="text-base font-semibold">{option}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[1.6rem] border border-[#e8e1d3] bg-white px-5 py-4">
+        <label className="block text-sm font-semibold text-stone-900">Other substance</label>
+        <input
+          value={value.customSubstance}
+          onChange={(event) => onChange({ ...value, customSubstance: event.target.value })}
+          placeholder="Type a substance if it is not listed"
+          className="mt-3 w-full rounded-[1rem] border border-[#e2d8c8] bg-[#fcfaf5] px-4 py-3 text-sm text-stone-700 outline-none"
+        />
       </div>
     </div>
   )
@@ -135,143 +249,81 @@ function SliderStep({
 
 export default function CheckInExperience() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const requestedPeriod = searchParams.get('period')
+  const period: CheckInPeriod =
+    requestedPeriod === 'night' || requestedPeriod === 'weekly' ? requestedPeriod : 'morning'
   const todayKey = getTodayKey()
-  const [entries, setEntries] = useState<Record<string, DailyEntry>>(() => readEntriesFromStorage())
+
+  const [state, setState] = useState(() => readWellnessState())
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(
+    () => state.sessions[`${todayKey}:${period}`]?.answers ?? createEmptyAnswers(period)
+  )
   const [stepIndex, setStepIndex] = useState(0)
-  const [answers, setAnswers] = useState<DailyEntry>(() => entries[todayKey] ?? emptyEntry(todayKey))
   const [isSaving, setIsSaving] = useState(false)
 
-  const yesterdayEntry = getYesterdayEntry(entries, todayKey)
+  const questions = useMemo(() => getQuestionsForPeriod(period, answers), [period, answers])
+  const currentStep = questions[Math.min(stepIndex, Math.max(questions.length - 1, 0))]
+  const progress = questions.length ? ((stepIndex + 1) / questions.length) * 100 : 0
+  const previousAnswers = period === 'weekly' ? null : copyPreviousAnswers(state.sessions, todayKey, period)
 
-  const steps: QuestionStep[] = [
-    {
-      key: 'feeling',
-      eyebrow: 'Feeling',
-      title: 'How are you feeling today?',
-      description: 'Pick the answer that feels closest. Choice questions move forward automatically.',
-      kind: 'choice',
-      options: FEELING_OPTIONS.map((option) => ({
-        label: option.label,
-        value: option.value,
-        emoji: option.emoji,
-      })),
-      columns: 'sm:grid-cols-2',
-    },
-    {
-      key: 'energy',
-      eyebrow: 'Energy',
-      title: 'How is your energy today?',
-      description: 'Use the slider and continue when it feels right.',
-      kind: 'slider',
-      min: 1,
-      max: 5,
-      labels: ENERGY_LABELS,
-    },
-    {
-      key: 'sleep',
-      eyebrow: 'Sleep',
-      title: 'How was your sleep?',
-      description: 'A small snapshot now can make patterns easier to spot later.',
-      kind: 'choice',
-      options: SLEEP_OPTIONS.map((option) => ({
-        label: option,
-        value: option,
-      })),
-      columns: 'sm:grid-cols-3',
-    },
-    {
-      key: 'painLevel',
-      eyebrow: 'Pain',
-      title: 'How would you rate your pain today?',
-      description: 'Only move the slider if pain was part of the day you want to track.',
-      kind: 'slider',
-      min: 1,
-      max: 10,
-    },
-    {
-      key: 'stress',
-      eyebrow: 'Stress',
-      title: 'How stressed do you feel?',
-      description: 'Choose the point on the scale that feels most accurate right now.',
-      kind: 'slider',
-      min: 1,
-      max: 5,
-      labels: STRESS_LABELS,
-    },
-    {
-      key: 'activity',
-      eyebrow: 'Activity',
-      title: 'How active were you today?',
-      description: 'Think about the whole day rather than a single moment.',
-      kind: 'choice',
-      options: ACTIVITY_OPTIONS.map((option) => ({
-        label: option,
-        value: option,
-      })),
-      columns: 'grid-cols-1',
-    },
-    {
-      key: 'medication',
-      eyebrow: 'Medication',
-      title: 'Did you take your medications?',
-      description: 'This is just for tracking your routine, not for judgment.',
-      kind: 'choice',
-      options: MEDICATION_OPTIONS.map((option) => ({
-        label: option,
-        value: option,
-      })),
-      columns: 'sm:grid-cols-3',
-    },
-  ]
-
-  const currentStep = steps[stepIndex]
-  const progress = ((stepIndex + 1) / steps.length) * 100
-  const isLastStep = stepIndex === steps.length - 1
-
-  function persistEntry(entry: DailyEntry) {
-    const nextEntries = {
-      ...entries,
-      [entry.date]: entry,
+  function persistAnswers(nextAnswers: Record<string, AnswerValue>) {
+    const nextState = {
+      ...state,
+      sessions: saveSession(state.sessions, todayKey, period, nextAnswers),
     }
 
-    setEntries(nextEntries)
-    writeEntriesToStorage(nextEntries)
+    setState(nextState)
+    writeWellnessState(nextState)
   }
 
-  function saveAndReturn(entry: DailyEntry) {
+  function finishCheckIn(nextAnswers: Record<string, AnswerValue>) {
     setIsSaving(true)
-    persistEntry({
-      ...entry,
-      date: todayKey,
-      completedAt: new Date().toISOString(),
-    })
+    persistAnswers(nextAnswers)
     router.push('/')
   }
 
-  function handleChoiceSelect(value: string | number) {
+  function goNext() {
+    if (stepIndex >= questions.length - 1) {
+      finishCheckIn(answers)
+      return
+    }
+
+    setStepIndex((current) => Math.min(current + 1, questions.length - 1))
+  }
+
+  function applyAnswer(questionId: string, value: AnswerValue, autoAdvance = false) {
     const nextAnswers = {
       ...answers,
-      [currentStep.key]: value,
-    } as DailyEntry
+      [questionId]: value,
+    }
 
     setAnswers(nextAnswers)
 
-    if (isLastStep) {
-      saveAndReturn(nextAnswers)
-      return
-    }
+    if (autoAdvance) {
+      window.setTimeout(() => {
+        const nextQuestions = getQuestionsForPeriod(period, nextAnswers)
 
-    window.setTimeout(() => {
-      setStepIndex((previousStep) => Math.min(previousStep + 1, steps.length - 1))
-    }, 160)
+        if (stepIndex >= nextQuestions.length - 1) {
+          finishCheckIn(nextAnswers)
+          return
+        }
+
+        setStepIndex((current) => Math.min(current + 1, nextQuestions.length - 1))
+      }, 160)
+    }
   }
 
-  function useYesterdayAnswers() {
-    if (!yesterdayEntry) {
+  function sameAsPrevious() {
+    if (!previousAnswers) {
       return
     }
 
-    saveAndReturn(cloneEntryForDate(yesterdayEntry, todayKey))
+    finishCheckIn(previousAnswers)
+  }
+
+  if (!currentStep) {
+    return null
   }
 
   return (
@@ -287,25 +339,24 @@ export default function CheckInExperience() {
           </Link>
         </header>
 
-        <section className="rounded-[2.5rem] border border-white/70 bg-white/85 p-6 shadow-[0_28px_100px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:p-8">
+        <section className="rounded-[2.5rem] border border-white/70 bg-white/88 p-6 shadow-[0_28px_100px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
                 {formatLongDate(todayKey)}
               </p>
               <h1 className="font-display mt-3 text-3xl text-stone-900 sm:text-4xl">
-                Today&apos;s gentle check-in
+                {getPeriodLabel(period)} check-in
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                One question at a time, with a small pause between steps and room to go back if
-                you want to change anything.
+                One calm question at a time.
               </p>
             </div>
 
-            {yesterdayEntry ? (
+            {previousAnswers ? (
               <button
                 type="button"
-                onClick={useYesterdayAnswers}
+                onClick={sameAsPrevious}
                 className="rounded-full border border-[#d8e5ca] bg-[#eef5e5] px-4 py-3 text-sm font-semibold text-[#456246] transition hover:-translate-y-0.5"
               >
                 Same as yesterday
@@ -322,14 +373,14 @@ export default function CheckInExperience() {
 
           <div className="mt-3 flex items-center justify-between text-sm text-stone-500">
             <span>
-              Question {stepIndex + 1} of {steps.length}
+              Question {stepIndex + 1} of {questions.length}
             </span>
-            <span>{isSaving ? 'Saving...' : 'Calm progress'}</span>
+            <span>{isSaving ? 'Saving...' : 'Relaxed pace'}</span>
           </div>
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentStep.key}
+              key={currentStep.id}
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -18 }}
@@ -337,70 +388,85 @@ export default function CheckInExperience() {
               className="mt-8 space-y-7"
             >
               <div>
-                <p className="text-sm font-medium text-[#6f8e58]">{currentStep.eyebrow}</p>
-                <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900">
-                  {currentStep.title}
-                </h2>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  {currentStep.description}
+                <p className="text-sm font-medium text-[#6f8e58]">
+                  {currentStep.factors
+                    .map(
+                      (factor) =>
+                        FACTOR_CONFIG.find((item) => item.key === factor)?.label ?? factor
+                    )
+                    .join(' / ')}
                 </p>
+                <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900">
+                  {currentStep.prompt}
+                </h2>
+                {currentStep.helper ? (
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
+                    {currentStep.helper}
+                  </p>
+                ) : null}
               </div>
 
-              {currentStep.kind === 'choice' ? (
+              {currentStep.kind === 'single_choice' ? (
                 <ChoiceGrid
-                  value={answers[currentStep.key]}
-                  onSelect={handleChoiceSelect}
                   options={currentStep.options}
-                  columns={currentStep.columns}
+                  value={String(answers[currentStep.id] ?? currentStep.options[0])}
+                  onSelect={(value) => applyAnswer(currentStep.id, value, true)}
+                  columns={getChoiceColumns(currentStep.options.length)}
                 />
-              ) : (
+              ) : null}
+
+              {currentStep.kind === 'slider' ? (
                 <SliderStep
-                  value={
-                    currentStep.key === 'painLevel'
-                      ? (answers.painLevel ?? 4)
-                      : Number(answers[currentStep.key])
-                  }
-                  min={currentStep.min}
-                  max={currentStep.max}
-                  labels={currentStep.labels}
-                  onChange={(value) =>
-                    setAnswers((previousAnswers) => ({
-                      ...previousAnswers,
-                      [currentStep.key]: value,
-                    }))
-                  }
+                  question={currentStep}
+                  value={Number(answers[currentStep.id] ?? currentStep.min)}
+                  onChange={(value) => applyAnswer(currentStep.id, value)}
                 />
-              )}
+              ) : null}
+
+              {currentStep.kind === 'multi_select' ? (
+                <MultiSelectStep
+                  options={currentStep.options}
+                  value={(answers[currentStep.id] as string[]) ?? []}
+                  onChange={(value) => applyAnswer(currentStep.id, value)}
+                />
+              ) : null}
+
+              {currentStep.kind === 'substance_use' ? (
+                <SubstanceStep
+                  question={currentStep}
+                  value={
+                    (answers[currentStep.id] as SubstanceUseAnswer) ?? {
+                      substances: [],
+                      customSubstance: '',
+                      frequency: 'None',
+                    }
+                  }
+                  onChange={(value) => applyAnswer(currentStep.id, value)}
+                />
+              ) : null}
             </motion.div>
           </AnimatePresence>
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => setStepIndex((previousStep) => Math.max(0, previousStep - 1))}
+              onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
               disabled={stepIndex === 0}
               className="rounded-full border border-[#e7decd] bg-white px-5 py-3 text-sm font-semibold text-stone-600 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Back
             </button>
 
-            {currentStep.kind === 'slider' ? (
+            {currentStep.kind === 'slider' || currentStep.kind === 'multi_select' || currentStep.kind === 'substance_use' ? (
               <button
                 type="button"
-                onClick={() => {
-                  if (isLastStep) {
-                    saveAndReturn(answers)
-                    return
-                  }
-
-                  setStepIndex((previousStep) => Math.min(previousStep + 1, steps.length - 1))
-                }}
+                onClick={goNext}
                 className="rounded-full bg-[#6f9658] px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
               >
-                {isLastStep ? "Save today's check-in" : 'Next question'}
+                {stepIndex >= questions.length - 1 ? "Save today's check-in" : 'Next question'}
               </button>
             ) : (
-              <p className="text-sm text-stone-500">Selecting an answer will continue automatically.</p>
+              <p className="text-sm text-stone-500">Single-choice answers continue automatically.</p>
             )}
           </div>
         </section>

@@ -1,5 +1,10 @@
+import { Suspense } from 'react'
 import CheckInExperience from '@/components/CheckInExperience'
 
 export default function CheckInPage() {
-  return <CheckInExperience />
+  return (
+    <Suspense fallback={null}>
+      <CheckInExperience />
+    </Suspense>
+  )
 }
