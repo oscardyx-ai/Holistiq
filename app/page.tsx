@@ -3,10 +3,12 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
+import UserAvatar from '@/components/UserAvatar'
 import PlantProgress from '@/components/PlantProgress'
 import {
   WellnessState,
@@ -56,13 +58,25 @@ export default function Home() {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   )
+  const [firstName, setFirstName] = useState<string | null>(null)
+
   const todayKey = getTodayKey()
-  const greeting = getGreetingForDate()
   const monthProgress = getMonthProgress(state.sessions, todayKey)
   const streak = getConsecutiveStreak(state.sessions, todayKey)
   const todayStatus = getTodayStatus(state.sessions, todayKey)
   const weeklyDue = isWeeklyCheckInDue(state.sessions)
   const familyNudgeCandidate = getFamilyNudgeCandidate(state.familyMembers, state.sessions, todayKey)
+
+  const greeting = firstName
+    ? `${getGreetingForDate()}, ${firstName}`
+    : getGreetingForDate()
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      const full = user?.user_metadata?.full_name ?? user?.user_metadata?.name
+      setFirstName(full ? full.split(' ')[0] : null)
+    })
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -162,26 +176,29 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <LogoWordmark compact />
 
-            <nav className="flex flex-wrap items-center gap-2 rounded-full bg-[#f5efdf] p-1">
-              {(['today', 'insights', 'learn', 'family'] as HomeTab[]).map((item) => {
-                const active = tab === item
+            <div className="flex items-center gap-4">
+              <nav className="flex flex-wrap items-center gap-2 rounded-full bg-[#f5efdf] p-1">
+                {(['today', 'insights', 'learn', 'family'] as HomeTab[]).map((item) => {
+                  const active = tab === item
 
-                return (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setTab(item)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-                      active
-                        ? 'bg-[#6f9658] text-white shadow-[0_10px_24px_rgba(111,150,88,0.22)]'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    {item}
-                  </button>
-                )
-              })}
-            </nav>
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setTab(item)}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
+                        active
+                          ? 'bg-[#6f9658] text-white shadow-[0_10px_24px_rgba(111,150,88,0.22)]'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                })}
+              </nav>
+              <UserAvatar />
+            </div>
           </div>
         </header>
 
@@ -193,7 +210,7 @@ export default function Home() {
               transition={{ duration: 0.35, ease: 'easeOut' }}
               className="rounded-[2.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(249,243,231,0.9))] px-6 py-7 shadow-[0_30px_110px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:px-8 sm:py-9"
             >
-              <h1 className="font-display text-5xl leading-[0.95] text-stone-900 sm:text-6xl">
+              <h1 className="font-display text-5xl leading-[0.95] text-stone-900 sm:text-6xl whitespace-nowrap">
                 {greeting}
               </h1>
               <p className="mt-4 text-base text-stone-500">{todayShortStatus}</p>
