@@ -60,22 +60,23 @@ export default function UserAvatar() {
     )
   }
 
+  if (user.avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={user.avatarUrl}
+        alt={user.name}
+        width={36}
+        height={36}
+        referrerPolicy="no-referrer"
+        className="h-9 w-9 rounded-full object-cover ring-2 ring-[#d5e2c7]"
+      />
+    )
+  }
+
   return (
-    <div className="flex items-center gap-2.5">
-      {user.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={user.avatarUrl}
-          alt={user.name}
-          width={36}
-          height={36}
-          className="h-9 w-9 rounded-full ring-2 ring-[#d5e2c7]"
-        />
-      ) : (
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef5e5] text-sm font-semibold text-[#456246] ring-2 ring-[#d5e2c7]">
-          {user.name[0].toUpperCase()}
-        </span>
-      )}
-    </div>
+    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef5e5] text-sm font-semibold text-[#456246] ring-2 ring-[#d5e2c7]">
+      {user.name[0].toUpperCase()}
+    </span>
   )
 }
