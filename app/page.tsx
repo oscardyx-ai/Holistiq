@@ -11,6 +11,7 @@ import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
 import PlantProgress from '@/components/PlantProgress'
 import {
+  createDefaultState,
   WellnessState,
   getConsecutiveStreak,
   getDailyStatusLabel,
@@ -53,11 +54,9 @@ function StatusCard({
 }
 
 export default function Home() {
-  const [state, setState] = useState<WellnessState>(() => readWellnessState())
+  const [state, setState] = useState<WellnessState>(() => createDefaultState())
   const [tab, setTab] = useState<HomeTab>('today')
-  const [notificationPermission, setNotificationPermission] = useState(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
-  )
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [firstName, setFirstName] = useState<string | null>(null)
 
   const todayKey = getTodayKey()
@@ -70,6 +69,14 @@ export default function Home() {
   const greeting = firstName
     ? `${getGreetingForDate()}, ${firstName}`
     : getGreetingForDate()
+
+  useEffect(() => {
+    setState(readWellnessState())
+
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission)
+    }
+  }, [])
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data: { user } }) => {
