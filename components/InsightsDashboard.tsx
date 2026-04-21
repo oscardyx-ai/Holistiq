@@ -151,28 +151,6 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_18px_64px_rgba(190,198,189,0.18)] backdrop-blur-xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
-          Scoring model
-        </p>
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          <StatCard
-            label="Question weighting"
-            value="Mixed factors"
-            caption="Every question can score one, two, or three factors at once using weighted observations."
-          />
-          <StatCard
-            label="Dampening"
-            value="Stack softly"
-            caption="Negative multi-select feelings stack with a dampening curve so repeated emotions do not over-penalize the score."
-          />
-          <StatCard
-            label="Connected apps"
-            value="Merged signals"
-            caption="Connected data such as sodium, steps, sleep, and adherence adjusts factor scores alongside check-in answers."
-          />
-        </div>
-      </section>
     </section>
   )
 }
