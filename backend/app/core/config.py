@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ENV_FILE = REPO_ROOT / "backend" / ".env"
 DEFAULT_DATABASE_FILE = REPO_ROOT / "backend" / "dev.db"
+DEFAULT_SUPABASE_URL = "https://wsachiytaiqzzwkpgzko.supabase.co"
 LOCAL_ENV_FILE = REPO_ROOT / ".env.local"
 
 
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = f"sqlite:///{DEFAULT_DATABASE_FILE}"
     supabase_url: str | None = Field(
-        default=None,
+        default=DEFAULT_SUPABASE_URL,
         validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
     )
     supabase_jwt_secret: str | None = None

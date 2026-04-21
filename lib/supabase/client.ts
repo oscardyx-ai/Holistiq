@@ -1,19 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { getPublicEnv } from '@/lib/env/public'
 
 export function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl) {
-    throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_URL')
-  }
-
-  if (!supabaseAnonKey) {
-    throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  }
-
   return createBrowserClient(
-    supabaseUrl,
-    supabaseAnonKey,
+    getPublicEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    getPublicEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
   )
 }
