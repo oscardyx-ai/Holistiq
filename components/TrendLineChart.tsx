@@ -43,9 +43,9 @@ export default function TrendLineChart({
     },
     grid: {
       top: 28,
-      left: 16,
-      right: 20,
-      bottom: 20,
+      left: 10,
+      right: 16,
+      bottom: 10,
       containLabel: true,
     },
     xAxis: {
@@ -59,6 +59,7 @@ export default function TrendLineChart({
       },
       axisLabel: {
         color: '#78716c',
+        margin: 12,
       },
     },
     yAxis: {
@@ -73,6 +74,7 @@ export default function TrendLineChart({
       },
       axisLabel: {
         color: '#78716c',
+        margin: 10,
       },
     },
     series: [
@@ -112,12 +114,24 @@ export default function TrendLineChart({
   }
 
   return (
-    <ReactECharts
-      option={option}
-      notMerge
-      lazyUpdate
-      style={{ height: 360, width: '100%' }}
-      opts={{ renderer: 'canvas' }}
-    />
+    <div className="relative h-[360px] w-full">
+      <div className="pointer-events-none absolute bottom-[2px] left-1/2 -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+        Date
+      </div>
+
+      <div className="pointer-events-none absolute left-[2px] top-1/2 origin-center -translate-y-1/2 -rotate-90 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+        Score
+      </div>
+
+      <div className="absolute bottom-8 left-8 right-0 top-0">
+        <ReactECharts
+          option={option}
+          notMerge
+          lazyUpdate
+          style={{ height: '100%', width: '100%' }}
+          opts={{ renderer: 'canvas' }}
+        />
+      </div>
+    </div>
   )
 }

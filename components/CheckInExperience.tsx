@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import LogoWordmark from '@/components/LogoWordmark'
 import {
   AnswerValue,
@@ -17,10 +17,9 @@ import {
   getPeriodLabel,
   getQuestionsForPeriod,
   getTodayKey,
-  readWellnessState,
-  saveSession,
-  writeWellnessState,
+  WellnessState,
 } from '@/components/checkInData'
+import { createEmptyWellnessState, fetchWellnessState, saveCheckIn } from '@/lib/wellness-api'
 
 function getChoiceColumns(count: number) {
   if (count <= 2) {
@@ -32,6 +31,14 @@ function getChoiceColumns(count: number) {
   }
 
   return 'sm:grid-cols-2'
+}
+
+function getFriendlyErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error) || !error.message) {
+    return fallback
+  }
+
+  return error.message.trim().startsWith('<') ? fallback : error.message
 }
 
 function ChoiceGrid({
@@ -255,37 +262,70 @@ export default function CheckInExperience() {
     requestedPeriod === 'night' || requestedPeriod === 'weekly' ? requestedPeriod : 'morning'
   const todayKey = getTodayKey()
 
-  const [state, setState] = useState(() => readWellnessState())
-  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(
-    () => state.sessions[`${todayKey}:${period}`]?.answers ?? createEmptyAnswers(period)
-  )
+  const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(() => createEmptyAnswers(period))
   const [stepIndex, setStepIndex] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingState, setIsLoadingState] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const questions = useMemo(() => getQuestionsForPeriod(period, answers), [period, answers])
   const currentStep = questions[Math.min(stepIndex, Math.max(questions.length - 1, 0))]
   const progress = questions.length ? ((stepIndex + 1) / questions.length) * 100 : 0
   const previousAnswers = period === 'weekly' ? null : copyPreviousAnswers(state.sessions, todayKey, period)
 
-  function persistAnswers(nextAnswers: Record<string, AnswerValue>) {
-    const nextState = {
-      ...state,
-      sessions: saveSession(state.sessions, todayKey, period, nextAnswers),
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadState() {
+      setIsLoadingState(true)
+      setLoadError(null)
+
+      try {
+        const nextState = await fetchWellnessState()
+        if (cancelled) {
+          return
+        }
+
+        setState(nextState)
+        setAnswers(nextState.sessions[`${todayKey}:${period}`]?.answers ?? createEmptyAnswers(period))
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(getFriendlyErrorMessage(error, 'Could not load your latest check-in data.'))
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingState(false)
+        }
+      }
     }
 
-    setState(nextState)
-    writeWellnessState(nextState)
-  }
+    void loadState()
 
-  function finishCheckIn(nextAnswers: Record<string, AnswerValue>) {
+    return () => {
+      cancelled = true
+    }
+  }, [period, todayKey])
+
+  async function finishCheckIn(nextAnswers: Record<string, AnswerValue>) {
     setIsSaving(true)
-    persistAnswers(nextAnswers)
-    router.push('/')
+
+    try {
+      await saveCheckIn({
+        entryDate: todayKey,
+        period,
+        answers: nextAnswers,
+      })
+      router.push('/')
+    } catch (error) {
+      setLoadError(getFriendlyErrorMessage(error, 'Could not save your check-in just now.'))
+      setIsSaving(false)
+    }
   }
 
   function goNext() {
     if (stepIndex >= questions.length - 1) {
-      finishCheckIn(answers)
+      void finishCheckIn(answers)
       return
     }
 
@@ -305,7 +345,7 @@ export default function CheckInExperience() {
         const nextQuestions = getQuestionsForPeriod(period, nextAnswers)
 
         if (stepIndex >= nextQuestions.length - 1) {
-          finishCheckIn(nextAnswers)
+          void finishCheckIn(nextAnswers)
           return
         }
 
@@ -319,7 +359,23 @@ export default function CheckInExperience() {
       return
     }
 
-    finishCheckIn(previousAnswers)
+    void finishCheckIn(previousAnswers)
+  }
+
+  if (isLoadingState) {
+    return (
+      <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-4xl flex-col gap-6">
+          <header className="flex flex-wrap items-center justify-between gap-4">
+            <LogoWordmark compact />
+          </header>
+          <section className="rounded-[2.5rem] border border-white/70 bg-white/88 p-6 text-center shadow-[0_28px_100px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:p-8">
+            <h1 className="font-display text-3xl text-stone-900">Loading your check-in</h1>
+            <p className="mt-3 text-sm text-stone-500">Pulling the latest saved answers from the backend.</p>
+          </section>
+        </div>
+      </main>
+    )
   }
 
   if (!currentStep) {
@@ -340,6 +396,12 @@ export default function CheckInExperience() {
         </header>
 
         <section className="rounded-[2.5rem] border border-white/70 bg-white/88 p-6 shadow-[0_28px_100px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:p-8">
+          {loadError ? (
+            <div className="mb-6 rounded-[1.2rem] border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">

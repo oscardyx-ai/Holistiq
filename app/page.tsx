@@ -10,79 +10,62 @@ import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
 import PlantProgress from '@/components/PlantProgress'
-import VoiceCheckin, { VoiceCheckinData } from '@/components/VoiceCheckin'
 import {
-  createDefaultState,
   WellnessState,
   getConsecutiveStreak,
   getDailyStatusLabel,
   getFamilyNudgeCandidate,
   getGreetingForDate,
-  getMonthProgress,
   getTodayKey,
   getTodayStatus,
   isWeeklyCheckInDue,
-  readWellnessState,
-  writeWellnessState,
 } from '@/components/checkInData'
+import {
+  createEmptyWellnessState,
+  createFamilyMember,
+  fetchWellnessState,
+  updateFamilyMemberSharing,
+  updatePrivacySettings,
+  updateReminderSettings,
+} from '@/lib/wellness-api'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
-
-function MicIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1.5 18.93A8.001 8.001 0 0 1 4 12H6a6 6 0 0 0 12 0h2a8.001 8.001 0 0 1-6.5 7.93V22h-3v-2.07z"/>
-    </svg>
-  )
-}
 
 function StatusCard({
   title,
   status,
   href,
   helper,
-  onVoiceTap,
 }: {
   title: string
   status: string
   href: string
   helper: string
-  onVoiceTap: () => void
 }) {
   return (
     <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5">
       <p className="text-sm text-stone-500">{title}</p>
       <p className="font-display mt-3 text-3xl text-stone-900">{status}</p>
       <p className="mt-2 text-sm text-stone-500">{helper}</p>
-      <div className="mt-5 flex items-center gap-2">
-        <Link
-          href={href}
-          className="inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
-        >
-          Open
-        </Link>
-        <button
-          type="button"
-          onClick={onVoiceTap}
-          aria-label="Voice check-in"
-          className="inline-flex items-center justify-center rounded-full bg-[#6f9658] p-3 text-white transition hover:-translate-y-0.5"
-        >
-          <MicIcon />
-        </button>
-      </div>
+      <Link
+        href={href}
+        className="mt-5 inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+      >
+        Open
+      </Link>
     </article>
   )
 }
 
 export default function Home() {
-  const [state, setState] = useState<WellnessState>(() => createDefaultState())
+  const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
   const [tab, setTab] = useState<HomeTab>('today')
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [firstName, setFirstName] = useState<string | null>(null)
-  const [voiceCheckinPeriod, setVoiceCheckinPeriod] = useState<'morning' | 'night' | null>(null)
+const [isLoadingState, setIsLoadingState] = useState(true)
+  const [stateError, setStateError] = useState<string | null>(null)
 
   const todayKey = getTodayKey()
-  const monthProgress = getMonthProgress(state.sessions, todayKey)
   const streak = getConsecutiveStreak(state.sessions, todayKey)
   const todayStatus = getTodayStatus(state.sessions, todayKey)
   const weeklyDue = isWeeklyCheckInDue(state.sessions)
@@ -92,9 +75,21 @@ export default function Home() {
     ? `${getGreetingForDate()}, ${firstName}`
     : getGreetingForDate()
 
-  useEffect(() => {
-    setState(readWellnessState())
+  async function refreshState() {
+    setIsLoadingState(true)
+    setStateError(null)
 
+    try {
+      const nextState = await fetchWellnessState()
+      setState(nextState)
+    } catch {
+      setStateError('Could not load your latest wellness data.')
+    } finally {
+      setIsLoadingState(false)
+    }
+  }
+
+  useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermission(Notification.permission)
     }
@@ -105,9 +100,15 @@ export default function Home() {
       const full = user?.user_metadata?.full_name ?? user?.user_metadata?.name
       setFirstName(full ? full.split(' ')[0] : null)
     })
+
+    void refreshState()
   }, [])
 
   useEffect(() => {
+    if (isLoadingState) {
+      return
+    }
+
     if (typeof window === 'undefined' || !('Notification' in window)) {
       return
     }
@@ -129,15 +130,16 @@ export default function Home() {
           body: 'Night check-in is still open. Take a calm minute to log today.',
         })
 
-        const nextState = {
-          ...state,
-          reminders: {
-            ...state.reminders,
-            nightReminderLastSentDate: todayKey,
-          },
+        const nextReminders = {
+          ...state.reminders,
+          nightReminderLastSentDate: todayKey,
         }
-        setState(nextState)
-        writeWellnessState(nextState)
+
+        setState((currentState) => ({
+          ...currentState,
+          reminders: nextReminders,
+        }))
+        void updateReminderSettings(nextReminders)
       }
 
       if (
@@ -161,14 +163,15 @@ export default function Home() {
 
       window.setTimeout(() => {
         setState((currentState) => {
+          const nextReminders = {
+            ...currentState.reminders,
+            familyNudgeLastSentAt: familyNudgeCandidate.lastCheckInAt,
+          }
           const nextState = {
             ...currentState,
-            reminders: {
-              ...currentState.reminders,
-              familyNudgeLastSentAt: familyNudgeCandidate.lastCheckInAt,
-            },
+            reminders: nextReminders,
           }
-          writeWellnessState(nextState)
+          void updateReminderSettings(nextReminders)
           return nextState
         })
       }, 0)
@@ -179,7 +182,7 @@ export default function Home() {
         window.clearTimeout(timeoutId)
       }
     }
-  }, [familyNudgeCandidate, state, todayKey, todayStatus.nightComplete])
+  }, [familyNudgeCandidate, isLoadingState, state, todayKey, todayStatus.nightComplete])
 
   function requestNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -191,16 +194,57 @@ export default function Home() {
     })
   }
 
-  function updateState(nextState: WellnessState) {
-    setState(nextState)
-    writeWellnessState(nextState)
+  async function handleAddFamilyMember(input: { name: string; relation: string }) {
+    await createFamilyMember(input)
+    await refreshState()
   }
 
-  function handleVoiceSave(_data: VoiceCheckinData) {
-    setVoiceCheckinPeriod(null)
+  async function handleUpdatePrivacy(nextPrivacy: WellnessState['privacy']) {
+    const previousSharedIds = new Set(state.privacy.sharedFamilyMemberIds)
+    const nextSharedIds = new Set(nextPrivacy.sharedFamilyMemberIds)
+
+    setState((currentState) => ({
+      ...currentState,
+      privacy: nextPrivacy,
+    }))
+
+    try {
+      await updatePrivacySettings(nextPrivacy)
+
+      const changedMembers = state.familyMembers.filter((member) => {
+        const previouslyShared = previousSharedIds.has(member.id)
+        const nextShared = nextSharedIds.has(member.id)
+        return previouslyShared !== nextShared
+      })
+
+      await Promise.all(
+        changedMembers.map((member) =>
+          updateFamilyMemberSharing(member.id, nextSharedIds.has(member.id))
+        )
+      )
+
+      await refreshState()
+    } catch {
+      setStateError('Could not save your sharing preferences.')
+      await refreshState()
+    }
   }
 
-  const todayShortStatus = `${todayStatus.completedSlots}/2 today`
+  async function handleUpdateReminders(nextReminders: WellnessState['reminders']) {
+    setState((currentState) => ({
+      ...currentState,
+      reminders: nextReminders,
+    }))
+
+    try {
+      await updateReminderSettings(nextReminders)
+    } catch {
+      setStateError('Could not save your reminder settings.')
+      await refreshState()
+    }
+  }
+
+const todayShortStatus = `${todayStatus.completedSlots}/2 today`
 
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
@@ -235,7 +279,20 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === 'today' ? (
+        {stateError ? (
+          <div className="rounded-[1.4rem] border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {stateError}
+          </div>
+        ) : null}
+
+        {isLoadingState ? (
+          <section className="rounded-[2.5rem] border border-white/70 bg-white/80 px-6 py-12 text-center shadow-[0_24px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl">
+            <p className="font-display text-3xl text-stone-900">Loading your wellness dashboard</p>
+            <p className="mt-3 text-sm text-stone-500">Pulling check-ins, insights, family, and reminders from the backend.</p>
+          </section>
+        ) : null}
+
+        {!isLoadingState && tab === 'today' ? (
           <section className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -262,14 +319,12 @@ export default function Home() {
                   status={getDailyStatusLabel(state.sessions, todayKey, 'morning')}
                   href="/check-in?period=morning"
                   helper="Morning questions"
-                  onVoiceTap={() => setVoiceCheckinPeriod('morning')}
                 />
                 <StatusCard
                   title="Night"
                   status={getDailyStatusLabel(state.sessions, todayKey, 'night')}
                   href="/check-in?period=night"
                   helper="Evening questions"
-                  onVoiceTap={() => setVoiceCheckinPeriod('night')}
                 />
               </div>
 
@@ -303,99 +358,25 @@ export default function Home() {
                 </button>
               ) : null}
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.04 }}
-              className="space-y-6"
-            >
-              <PlantProgress
-                stage={monthProgress.stage}
-                progress={monthProgress.progress}
-                monthLabel={monthProgress.monthLabel}
-                completedSlots={monthProgress.completedSlots}
-                targetSlots={monthProgress.targetSlots}
-              />
-
-              <section className="rounded-[2.2rem] border border-white/70 bg-white/80 p-6 shadow-[0_22px_90px_rgba(120,133,107,0.12)] backdrop-blur-xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
-                  Factors
-                </p>
-                <h2 className="font-display mt-3 text-3xl text-stone-900">
-                  Pain, mind, social, lifestyle, diet, environment, medication, and activity
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setTab('insights')}
-                  className="mt-5 rounded-full border border-[#d8e5ca] bg-[#eef5e5] px-5 py-3 text-sm font-semibold text-[#456246] transition hover:-translate-y-0.5"
-                >
-                  Open insights
-                </button>
-              </section>
-            </motion.div>
           </section>
         ) : null}
 
-        {tab === 'insights' ? <InsightsDashboard state={state} /> : null}
+        {!isLoadingState && tab === 'insights' ? <InsightsDashboard state={state} /> : null}
 
-        {tab === 'learn' ? <LearnTab /> : null}
+        {!isLoadingState && tab === 'learn' ? <LearnTab /> : null}
 
-        {tab === 'family' ? (
+        {!isLoadingState && tab === 'family' ? (
           <FamilyTab
             familyMembers={state.familyMembers}
             privacy={state.privacy}
             reminders={state.reminders}
-            onUpdateFamilyMembers={(familyMembers) => updateState({ ...state, familyMembers })}
-            onUpdatePrivacy={(privacy) => updateState({ ...state, privacy })}
-            onUpdateReminders={(reminders) => updateState({ ...state, reminders })}
+            onAddFamilyMember={handleAddFamilyMember}
+            onUpdatePrivacy={handleUpdatePrivacy}
+            onUpdateReminders={handleUpdateReminders}
           />
         ) : null}
       </div>
 
-      {/* Voice check-in modal */}
-      <AnimatePresence>
-        {voiceCheckinPeriod && (
-          <motion.div
-            key="voice-modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center"
-            onClick={(e) => { if (e.target === e.currentTarget) setVoiceCheckinPeriod(null) }}
-          >
-            <motion.div
-              key="voice-modal-sheet"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 40 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,243,231,0.98))] shadow-[0_-20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:rounded-[2rem]"
-              style={{ maxHeight: '90dvh' }}
-            >
-              <div className="flex items-center justify-between px-6 pt-5 pb-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-stone-400">
-                  {voiceCheckinPeriod === 'morning' ? 'Day' : 'Night'} check-in
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setVoiceCheckinPeriod(null)}
-                  className="rounded-full p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
-                  aria-label="Close"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
-              </div>
-              <VoiceCheckin
-                onSave={handleVoiceSave}
-                onCancel={() => setVoiceCheckinPeriod(null)}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </main>
   )
 }
