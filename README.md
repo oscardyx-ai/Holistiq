@@ -5,16 +5,44 @@ backend. The frontend handles the authenticated app shell and interaction
 design, while the backend is designed to own data persistence, analytics,
 family-sharing state, and future integrations.
 
-## Frontend
+## Local Development
 
-Run the Next.js app:
+Install frontend and backend dependencies:
 
 ```bash
 npm install
+npm run setup:backend
+```
+
+Run the full app:
+
+```bash
 npm run dev
 ```
 
-The app will be available at [http://localhost:3000](http://localhost:3000).
+The app will be available at [http://localhost:3000](http://localhost:3000), and the FastAPI backend will run at `http://127.0.0.1:8000`.
+
+If the frontend shows `fetch failed`, confirm the backend health endpoint works:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+It should return:
+
+```json
+{"status":"ok"}
+```
+
+If port `8000` is already in use, stop the old backend process before running `npm run dev` again.
+
+## Frontend Only
+
+Run only the Next.js app:
+
+```bash
+npm run dev:web
+```
 
 ## Backend
 
@@ -23,9 +51,9 @@ The FastAPI backend lives in [backend/README.md](backend/README.md).
 Quick start:
 
 ```bash
-pip install -e ./backend
+npm run setup:backend
 cp backend/.env.example backend/.env
-uvicorn backend.app.main:app --reload --app-dir .
+npm run dev:backend
 ```
 
 The API will be available at `http://127.0.0.1:8000`, with interactive docs at

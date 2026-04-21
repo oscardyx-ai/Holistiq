@@ -21,7 +21,7 @@ wellbeing-scoring and analytics logic in Python.
 2. Install dependencies:
 
 ```bash
-pip install -e ./backend
+npm run setup:backend
 ```
 
 3. Copy env values:
@@ -33,7 +33,7 @@ cp backend/.env.example backend/.env
 4. Start the API:
 
 ```bash
-uvicorn backend.app.main:app --reload --app-dir .
+npm run dev:backend
 ```
 
 The API will be available at `http://127.0.0.1:8000`, with docs at `/docs`.
