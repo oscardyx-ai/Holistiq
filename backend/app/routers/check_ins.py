@@ -1,4 +1,6 @@
-from datetime import date, datetime, timedelta
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -14,6 +16,13 @@ router = APIRouter(prefix="/check-ins", tags=["check-ins"])
 
 def week_key_for_date(value: date) -> date:
     return value - timedelta(days=value.weekday())
+
+
+def normalize_completed_at(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value
+
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 @router.get("", response_model=CheckInHistoryResponse)
@@ -54,7 +63,8 @@ def upsert_check_in(
 
     if session:
         session.answers = payload.answers
-        session.completed_at = payload.completed_at or session.completed_at
+        if payload.completed_at is not None:
+            session.completed_at = normalize_completed_at(payload.completed_at)
         session.week_key = week_key_for_date(payload.entry_date)
     else:
         session = CheckInSession(
@@ -63,7 +73,9 @@ def upsert_check_in(
             week_key=week_key_for_date(payload.entry_date),
             period=payload.period,
             answers=payload.answers,
-            completed_at=payload.completed_at or datetime.utcnow(),
+            completed_at=normalize_completed_at(payload.completed_at)
+            if payload.completed_at is not None
+            else datetime.utcnow(),
         )
         db.add(session)
 

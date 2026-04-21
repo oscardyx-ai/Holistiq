@@ -33,6 +33,14 @@ function getChoiceColumns(count: number) {
   return 'sm:grid-cols-2'
 }
 
+function getFriendlyErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error) || !error.message) {
+    return fallback
+  }
+
+  return error.message.trim().startsWith('<') ? fallback : error.message
+}
+
 function ChoiceGrid({
   options,
   onSelect,
@@ -281,9 +289,9 @@ export default function CheckInExperience() {
 
         setState(nextState)
         setAnswers(nextState.sessions[`${todayKey}:${period}`]?.answers ?? createEmptyAnswers(period))
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setLoadError('Could not load your latest check-in data.')
+          setLoadError(getFriendlyErrorMessage(error, 'Could not load your latest check-in data.'))
         }
       } finally {
         if (!cancelled) {
@@ -307,11 +315,10 @@ export default function CheckInExperience() {
         entryDate: todayKey,
         period,
         answers: nextAnswers,
-        completedAt: new Date().toISOString(),
       })
       router.push('/')
-    } catch {
-      setLoadError('Could not save your check-in just now.')
+    } catch (error) {
+      setLoadError(getFriendlyErrorMessage(error, 'Could not save your check-in just now.'))
       setIsSaving(false)
     }
   }

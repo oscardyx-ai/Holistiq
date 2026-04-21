@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, Date, DateTime, Enum as SqlEnum, ForeignKey, Integer, JSON, String, UniqueConstraint
@@ -37,9 +38,9 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
-    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -70,8 +71,8 @@ class ReminderSettings(Base):
     night_reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     night_reminder_hour: Mapped[int] = mapped_column(Integer, default=20)
     family_nudges_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    night_reminder_last_sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    family_nudge_last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    night_reminder_last_sent_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    family_nudge_last_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -94,8 +95,8 @@ class FamilyMember(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     owner_user_id: Mapped[str] = mapped_column(String(128), ForeignKey("user_profiles.user_id"), index=True)
-    invited_user_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    invite_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    invited_user_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    invite_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     relation: Mapped[str] = mapped_column(String(255), default="Family member")
     status: Mapped[FamilyMemberStatus] = mapped_column(SqlEnum(FamilyMemberStatus), default=FamilyMemberStatus.PENDING)

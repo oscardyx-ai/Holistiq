@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import get_settings
 from backend.app.db import Base, engine
-from backend.app.routers import check_ins, connected_apps, family, health, insights, me, settings, wellness
+from backend.app.routers import check_ins, connected_apps, family, health, insights, me, settings as settings_router, wellness
 
 
 @asynccontextmanager
@@ -28,7 +28,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(me.router, prefix=settings.api_prefix)
 app.include_router(check_ins.router, prefix=settings.api_prefix)
-app.include_router(settings.router, prefix=settings.api_prefix)
+app.include_router(settings_router.router, prefix=settings.api_prefix)
 app.include_router(family.router, prefix=settings.api_prefix)
 app.include_router(connected_apps.router, prefix=settings.api_prefix)
 app.include_router(insights.router, prefix=settings.api_prefix)

@@ -207,11 +207,40 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     cache: 'no-store',
   })
 
-  if (!response.ok) {
-    throw new Error(await response.text())
+  const rawBody = await response.text()
+  let parsedBody: unknown = null
+
+  if (rawBody) {
+    try {
+      parsedBody = JSON.parse(rawBody)
+    } catch {
+      parsedBody = rawBody
+    }
   }
 
-  return response.json() as Promise<T>
+  if (!response.ok) {
+    if (parsedBody && typeof parsedBody === 'object') {
+      const payload = parsedBody as { detail?: unknown; error?: unknown }
+      const detail =
+        typeof payload.detail === 'string'
+          ? payload.detail
+          : typeof payload.error === 'string'
+            ? payload.error
+            : null
+
+      if (detail) {
+        throw new Error(detail)
+      }
+    }
+
+    if (typeof parsedBody === 'string' && !parsedBody.trim().startsWith('<')) {
+      throw new Error(parsedBody)
+    }
+
+    throw new Error(`Request failed with status ${response.status}.`)
+  }
+
+  return parsedBody as T
 }
 
 export async function fetchWellnessState() {
@@ -225,14 +254,24 @@ export async function saveCheckIn(params: {
   answers: Record<string, unknown>
   completedAt?: string
 }) {
+  const payload: {
+    entry_date: string
+    period: CheckInPeriod
+    answers: Record<string, unknown>
+    completed_at?: string
+  } = {
+    entry_date: params.entryDate,
+    period: params.period,
+    answers: params.answers,
+  }
+
+  if (params.completedAt) {
+    payload.completed_at = params.completedAt
+  }
+
   await apiRequest('check-ins', {
     method: 'POST',
-    body: JSON.stringify({
-      entry_date: params.entryDate,
-      period: params.period,
-      answers: params.answers,
-      completed_at: params.completedAt,
-    }),
+    body: JSON.stringify(payload),
   })
 }
 

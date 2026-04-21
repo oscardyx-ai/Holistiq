@@ -38,12 +38,25 @@ async function proxyToBackend(
     headers.set('content-type', contentType)
   }
 
-  const response = await fetch(buildBackendUrl(path, request), {
-    method: request.method,
-    headers,
-    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text(),
-    cache: 'no-store',
-  })
+  let response: Response
+
+  try {
+    response = await fetch(buildBackendUrl(path, request), {
+      method: request.method,
+      headers,
+      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text(),
+      cache: 'no-store',
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown backend connectivity error.'
+    return NextResponse.json(
+      {
+        error: 'Backend request failed.',
+        detail: message,
+      },
+      { status: 502 }
+    )
+  }
 
   const responseHeaders = new Headers()
   const responseContentType = response.headers.get('content-type')
