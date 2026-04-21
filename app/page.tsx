@@ -9,7 +9,6 @@ import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
-import PlantProgress from '@/components/PlantProgress'
 import {
   createDefaultState,
   WellnessState,
@@ -17,7 +16,6 @@ import {
   getDailyStatusLabel,
   getFamilyNudgeCandidate,
   getGreetingForDate,
-  getMonthProgress,
   getTodayKey,
   getTodayStatus,
   isWeeklyCheckInDue,
@@ -60,7 +58,6 @@ export default function Home() {
   const [firstName, setFirstName] = useState<string | null>(null)
 
   const todayKey = getTodayKey()
-  const monthProgress = getMonthProgress(state.sessions, todayKey)
   const streak = getConsecutiveStreak(state.sessions, todayKey)
   const todayStatus = getTodayStatus(state.sessions, todayKey)
   const weeklyDue = isWeeklyCheckInDue(state.sessions)
@@ -210,7 +207,7 @@ export default function Home() {
         </header>
 
         {tab === 'today' ? (
-          <section className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
+          <section>
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -274,37 +271,6 @@ export default function Home() {
                   Enable browser reminders
                 </button>
               ) : null}
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.04 }}
-              className="space-y-6"
-            >
-              <PlantProgress
-                stage={monthProgress.stage}
-                progress={monthProgress.progress}
-                monthLabel={monthProgress.monthLabel}
-                completedSlots={monthProgress.completedSlots}
-                targetSlots={monthProgress.targetSlots}
-              />
-
-              <section className="rounded-[2.2rem] border border-white/70 bg-white/80 p-6 shadow-[0_22px_90px_rgba(120,133,107,0.12)] backdrop-blur-xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
-                  Factors
-                </p>
-                <h2 className="font-display mt-3 text-3xl text-stone-900">
-                  Pain, mind, social, lifestyle, diet, environment, medication, and activity
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setTab('insights')}
-                  className="mt-5 rounded-full border border-[#d8e5ca] bg-[#eef5e5] px-5 py-3 text-sm font-semibold text-[#456246] transition hover:-translate-y-0.5"
-                >
-                  Open insights
-                </button>
-              </section>
             </motion.div>
           </section>
         ) : null}
