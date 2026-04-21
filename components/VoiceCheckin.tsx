@@ -58,17 +58,17 @@ function SliderField({
   onChange: (v: number) => void; missing: boolean
 }) {
   return (
-    <div className={`rounded-[1.2rem] border p-4 transition ${missing ? 'border-[#f0c98a] bg-[#fffbf3]' : 'border-[#e8e1d3] bg-white'}`}>
+    <div className={`rounded-[1.2rem] border p-4 transition ${missing ? 'border-[#ffb8ae] bg-[#fff2f0]' : 'border-[#e5e5e5] bg-white'}`}>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-semibold text-stone-700">{label}</span>
         {missing
-          ? <span className="rounded-full bg-[#f5e0b5] px-2 py-0.5 text-xs font-medium text-[#9a6a1a]">fill in</span>
-          : <span className="text-sm font-bold text-[#6b8f56]">{value}</span>}
+          ? <span className="rounded-full bg-[#ff6f59] px-2 py-0.5 text-xs font-medium text-[#ffffff]">fill in</span>
+          : <span className="text-sm font-bold text-[#4c956c]">{value}</span>}
       </div>
       <input
         type="range" min={min} max={max} value={value ?? min}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-2 w-full cursor-pointer accent-[#6b8f56]"
+        className="h-2 w-full cursor-pointer accent-[#4c956c]"
       />
       <div className="mt-1 flex justify-between text-xs text-stone-400">
         <span>{min}</span><span>{max}</span>
@@ -84,10 +84,10 @@ function ChoiceField<T extends string>({
   onChange: (v: T) => void; missing: boolean
 }) {
   return (
-    <div className={`rounded-[1.2rem] border p-4 transition ${missing ? 'border-[#f0c98a] bg-[#fffbf3]' : 'border-[#e8e1d3] bg-white'}`}>
+    <div className={`rounded-[1.2rem] border p-4 transition ${missing ? 'border-[#ffb8ae] bg-[#fff2f0]' : 'border-[#e5e5e5] bg-white'}`}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-semibold text-stone-700">{label}</span>
-        {missing && <span className="rounded-full bg-[#f5e0b5] px-2 py-0.5 text-xs font-medium text-[#9a6a1a]">fill in</span>}
+        {missing && <span className="rounded-full bg-[#ff6f59] px-2 py-0.5 text-xs font-medium text-[#ffffff]">fill in</span>}
       </div>
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
@@ -95,8 +95,8 @@ function ChoiceField<T extends string>({
             key={opt} type="button" onClick={() => onChange(opt)}
             className={`rounded-full border px-3 py-1.5 text-xs font-semibold capitalize transition ${
               opt === value
-                ? 'border-[#6b8f56] bg-[#6b8f56] text-white'
-                : 'border-[#e8e1d3] bg-white text-stone-600 hover:border-[#c5d6b8]'
+                ? 'border-[#4c956c] bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] text-white'
+                : 'border-[#e5e5e5] bg-white text-stone-600 hover:border-[#b8dcc9]'
             }`}
           >
             {opt}
@@ -124,7 +124,7 @@ function PulseRing() {
 }
 
 interface Props {
-  onSave: (data: VoiceCheckinData) => void
+  onSave: (data: VoiceCheckinData) => void | Promise<void>
   onCancel?: () => void
 }
 
@@ -269,7 +269,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}
             className="flex flex-col items-center gap-6 px-6 py-10 text-center"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#eef5e5]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e0f5ec]">
               <span className="text-3xl">🎙️</span>
             </div>
             <div>
@@ -285,7 +285,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
             )}
             <button
               type="button" onClick={startRecording}
-              className="rounded-full bg-[#6b8f56] px-8 py-3.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(107,143,86,0.28)] transition hover:-translate-y-0.5 active:translate-y-0"
+              className="rounded-full bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] px-8 py-3.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(76,149,108,0.28)] transition hover:-translate-y-0.5 hover:bg-[linear-gradient(180deg,#3a7d56_0%,#2c6e49_100%)] active:translate-y-0"
             >
               Start Recording
             </button>
@@ -314,10 +314,20 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               </button>
             </div>
             <p className="text-sm font-medium text-stone-500">Tap to stop recording</p>
-            <div className="w-full max-w-sm rounded-[1.2rem] border border-[#e8e1d3] bg-white/80 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-[1.2rem] border border-stone-100 bg-white p-4">
               {liveTranscript
-                ? <p className="text-sm leading-relaxed text-stone-700">{liveTranscript}<span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[#6b8f56]" /></p>
+                ? <p className="text-sm leading-relaxed text-stone-700">{liveTranscript}<span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[#4c956c]" /></p>
                 : <p className="text-sm text-stone-400">Listening…</p>}
+            </div>
+            <div className="w-full max-w-sm">
+              <p className="mb-2 font-semibold uppercase" style={{ fontSize: '0.65rem', letterSpacing: '0.12em', color: '#aaaaaa' }}>Topics to cover</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['Sleep', 'Energy', 'Mood', 'Pain', 'Stress', 'Meals', 'Activity', 'Connection', 'Routine', 'Environment', 'Medication'].map((topic) => (
+                  <span key={topic} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-500">
+                    {topic}
+                  </span>
+                ))}
+              </div>
             </div>
           </motion.div>
         )}
@@ -328,7 +338,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
             className="flex flex-col items-center gap-4 px-6 py-16 text-center"
           >
             <motion.div
-              className="h-12 w-12 rounded-full border-4 border-[#e8e1d3] border-t-[#6b8f56]"
+              className="h-12 w-12 rounded-full border-4 border-[#e5e5e5] border-t-[#4c956c]"
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             />
@@ -358,14 +368,14 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               <button
                 type="button"
                 onClick={() => { setPhase('prompt'); setLiveTranscript(''); setFinalTranscript('') }}
-                className="rounded-full border border-[#e8e1d3] bg-white px-3 py-1.5 text-xs font-medium text-stone-500 transition hover:border-[#c5d6b8]"
+                className="rounded-full border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-medium text-stone-500 transition hover:border-[#b8dcc9]"
               >
                 Re-record
               </button>
             </div>
 
             {finalTranscript && (
-              <div className="rounded-[1rem] border border-[#e8e1d3] bg-[#fdfaf5] px-4 py-3">
+              <div className="rounded-[1rem] border border-[#e5e5e5] bg-[#ffffff] px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Transcript</p>
                 <p className="mt-1 text-xs leading-relaxed text-stone-600">{finalTranscript}</p>
               </div>
@@ -389,7 +399,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               {onCancel && (
                 <button
                   type="button" onClick={onCancel}
-                  className="flex-1 rounded-full border border-[#e8e1d3] bg-white py-3 text-sm font-semibold text-stone-600 transition hover:border-[#c5d6b8]"
+                  className="flex-1 rounded-full border border-[#e5e5e5] bg-white py-3 text-sm font-semibold text-stone-600 transition hover:border-[#b8dcc9]"
                 >
                   Cancel
                 </button>
@@ -397,7 +407,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               <button
                 type="button"
                 onClick={() => { onSave(form); setPhase('done') }}
-                className="flex-1 rounded-full bg-[#6b8f56] py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(107,143,86,0.25)] transition hover:-translate-y-0.5 active:translate-y-0"
+                className="flex-1 rounded-full bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(76,149,108,0.25)] transition hover:-translate-y-0.5 hover:bg-[linear-gradient(180deg,#3a7d56_0%,#2c6e49_100%)] active:translate-y-0"
               >
                 Save Check-in
               </button>
@@ -410,7 +420,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
             className="flex flex-col items-center gap-4 px-6 py-16 text-center"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#eef5e5]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e0f5ec]">
               <span className="text-3xl">✓</span>
             </div>
             <p className="font-display text-xl font-bold text-stone-800">Saved!</p>

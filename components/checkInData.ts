@@ -244,15 +244,10 @@ function getTimeZoneParts(date: Date, timeZone: string) {
 }
 
 export function getGreetingForHour(hour: number) {
-  if (hour < 12) {
-    return 'Good morning'
-  }
-
-  if (hour < 17) {
-    return 'Good afternoon'
-  }
-
-  return 'Good evening'
+  if (hour >= 4 && hour < 12) return 'Good morning'
+  if (hour >= 12 && hour < 17) return 'Good afternoon'
+  if (hour >= 17 && hour < 21) return 'Good evening'
+  return 'Good night'
 }
 
 export function getResolvedCheckInTimeZone(timeZone?: string | null) {
@@ -268,7 +263,7 @@ export function getDailyCheckInContext(
   const currentDateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   const previousDate = new Date(Date.UTC(year, month - 1, day, 12))
   previousDate.setUTCDate(previousDate.getUTCDate() - 1)
-  const activePeriod: 'morning' | 'night' = hour >= 6 && hour < 18 ? 'morning' : 'night'
+  const activePeriod: 'morning' | 'night' = new Date().getHours() >= 4 && new Date().getHours() < 12 ? 'morning' : 'night'
 
   return {
     timeZone,

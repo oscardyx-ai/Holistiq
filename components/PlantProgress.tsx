@@ -89,14 +89,14 @@ export default function PlantProgress({
   targetSlots: number
 }) {
   return (
-    <section className="rounded-[2.5rem] border border-white/70 bg-[rgba(248,244,235,0.94)] p-5 shadow-[0_22px_80px_rgba(120,133,107,0.16)]">
+    <section className="rounded-[2.5rem] border border-stone-100 bg-white p-5 shadow-[0_22px_80px_rgba(76,149,108,0.10)]">
       <div className="mx-auto aspect-square max-w-[18rem]">
         <TreeStage stage={stage} />
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#456246]">{monthLabel}</p>
+          <p className="text-sm font-semibold text-[#2c6e49]">{monthLabel}</p>
           <p className="text-sm text-stone-500">Monthly growth</p>
         </div>
         <div className="text-right">

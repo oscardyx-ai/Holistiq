@@ -29,16 +29,13 @@ export default function DailySummaryRadarChart({
   date,
   factorScores,
   className,
-  height = 420,
 }: {
   date: string
   factorScores: Record<FactorKey, number>
   className?: string
-  height?: number
 }) {
   const isSmallScreen = useSmallScreen()
   const values = FACTOR_CONFIG.map((factor) => factorScores[factor.key] ?? 50)
-  const chartHeight = isSmallScreen ? Math.min(height, 320) : height
   const indicatorLabels = FACTOR_CONFIG.map((factor) => ({
     name: isSmallScreen
       ? (
@@ -87,7 +84,7 @@ export default function DailySummaryRadarChart({
       indicator: indicatorLabels,
       splitArea: {
         areaStyle: {
-          color: ['rgba(255,255,255,0.92)', 'rgba(248,245,240,0.72)'],
+          color: ['rgba(255,255,255,0.92)', 'rgba(249,249,249,0.72)'],
         },
       },
       splitLine: {
@@ -97,7 +94,7 @@ export default function DailySummaryRadarChart({
       },
       axisLine: {
         lineStyle: {
-          color: '#d6d3d1',
+          color: '#d5d5d5',
         },
       },
     },
@@ -108,13 +105,13 @@ export default function DailySummaryRadarChart({
         symbolSize: isSmallScreen ? 5 : 7,
         lineStyle: {
           width: 2,
-          color: '#6f9658',
+          color: '#4c956c',
         },
         itemStyle: {
-          color: '#6f9658',
+          color: '#4c956c',
         },
         areaStyle: {
-          color: 'rgba(111, 150, 88, 0.18)',
+          color: 'rgba(76, 149, 108, 0.18)',
         },
         data: [
           {
@@ -130,29 +127,26 @@ export default function DailySummaryRadarChart({
     <section
       aria-label={`Wellbeing radar chart for ${formatLongDate(date)}`}
       className={[
-        'rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_24px_80px_rgba(190,198,189,0.22)] sm:p-6',
+        'flex flex-col rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_24px_80px_rgba(76,149,108,0.22)] sm:p-7',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="flex flex-col gap-3 px-2 pb-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-stone-900">Factor score radar</p>
-          <p className="text-sm text-stone-500">Latest snapshot for {formatLongDate(date)}.</p>
-        </div>
-        <div className="w-fit rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-medium text-stone-500">
-          Scale 0-100
-        </div>
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#2c6e49]">Wellness snapshot</p>
+        <p className="mt-3 text-xs text-stone-600">Latest snapshot for {formatLongDate(date)}.</p>
       </div>
 
-      <ReactECharts
-        option={option}
-        notMerge
-        lazyUpdate
-        style={{ height: chartHeight, width: '100%' }}
-        opts={{ renderer: 'canvas' }}
-      />
+      <div className="-mt-12 min-h-0 flex-1" style={{ minHeight: isSmallScreen ? 280 : 320 }}>
+        <ReactECharts
+          option={option}
+          notMerge
+          lazyUpdate
+          style={{ height: '100%', width: '100%' }}
+          opts={{ renderer: 'canvas' }}
+        />
+      </div>
     </section>
   )
 }

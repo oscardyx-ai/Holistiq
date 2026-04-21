@@ -26,10 +26,12 @@ import {
   createEmptyWellnessState,
   createFamilyMember,
   fetchWellnessState,
+  saveCheckIn,
   updateFamilyMemberSharing,
   updatePrivacySettings,
   updateReminderSettings,
 } from '@/lib/wellness-api'
+import type { VoiceCheckinData } from '@/components/VoiceCheckin'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
 const HOME_TABS: HomeTab[] = ['today', 'insights', 'learn', 'family']
@@ -56,18 +58,17 @@ function QuestionnaireCard({
   showVoiceButton: boolean
 }) {
   return (
-    <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5 sm:p-6">
+    <article className="rounded-[1.8rem] border border-stone-100 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-stone-500">Questionnaire</p>
-          <h2 className="font-display mt-3 text-4xl text-stone-900 sm:text-5xl">{title}</h2>
+          <h2 className="font-display text-[1.5rem] text-stone-900">{title}</h2>
           <p className="mt-3 text-sm text-stone-500">{status}</p>
         </div>
 
         <div className="flex items-center gap-2">
           <Link
             href={href}
-            className="inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+            className="inline-flex rounded-full bg-[linear-gradient(180deg,#f4f4f4_0%,#f0f0f0_100%)] px-5 py-3 text-sm font-semibold text-[#555555]"
           >
             Get Started
           </Link>
@@ -76,7 +77,7 @@ function QuestionnaireCard({
               type="button"
               onClick={onVoiceTap}
               aria-label="Voice check-in"
-              className="inline-flex items-center justify-center rounded-full bg-[#6f9658] p-3 text-white transition hover:-translate-y-0.5"
+              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(180deg,#f4f4f4_0%,#f0f0f0_100%)] p-3 text-[#555555]"
             >
               <MicIcon />
             </button>
@@ -111,9 +112,9 @@ export default function Home() {
       ? todayStatus.morningComplete
       : todayStatus.nightComplete && (!needsMorningCatchUp || todayStatus.morningComplete)
   const activeCheckInHref = `/check-in?period=${activeDailyPeriod}`
-  const activeCheckInTitle = `${getPeriodLabel(activeDailyPeriod)} check-in`
+  const activeCheckInTitle = getPeriodLabel(activeDailyPeriod)
   const activeCheckInStatus = activeCheckInComplete ? 'Completed' : 'Open'
-  const canUseVoiceCheckIn = !needsMorningCatchUp
+  const canUseVoiceCheckIn = true
 
   const greeting = firstName
     ? `${getGreetingForHour(checkInWindow.hour)}, ${firstName}`
@@ -288,7 +289,37 @@ export default function Home() {
     }
   }
 
-  function handleVoiceSave() {
+  async function handleVoiceSave(data: VoiceCheckinData) {
+    const completedAt = new Date().toISOString()
+    const period = voiceCheckinPeriod ?? 'night'
+
+    const morningAnswers: Record<string, unknown> = {
+      morning_feeling: data.mood,
+      morning_energy: data.energy,
+      morning_sleep: data.sleep,
+    }
+    const nightAnswers: Record<string, unknown> = {
+      night_pain: data.pain,
+      night_stress: data.stress,
+      night_social_connection: data.connection,
+      night_routine: data.routine,
+      night_meals: data.meals,
+      night_environment: data.environment,
+      night_medication: data.medication,
+      night_activity: data.activity,
+    }
+
+    try {
+      if (period === 'morning') {
+        await saveCheckIn({ entryDate: todayKey, period: 'morning', answers: morningAnswers, completedAt })
+      } else {
+        await saveCheckIn({ entryDate: todayKey, period: 'night', answers: nightAnswers, completedAt })
+      }
+      await refreshState()
+    } catch {
+      // silently fail — UI already moved to 'done' phase in VoiceCheckin
+    }
+
     setVoiceCheckinPeriod(null)
   }
 
@@ -297,9 +328,11 @@ export default function Home() {
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="relative z-20 rounded-[2.5rem] border border-white/70 bg-white/75 px-6 py-5 shadow-[0_20px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl sm:px-8">
+        <header className="relative z-20 rounded-[2.5rem] border border-stone-100 bg-white px-6 py-5 shadow-[0_20px_80px_rgba(76,149,108,0.08)] sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <LogoWordmark compact />
+            <button type="button" onClick={() => setTab('today')} className="text-left">
+              <LogoWordmark compact />
+            </button>
 
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
               <div className="relative sm:hidden">
@@ -310,7 +343,7 @@ export default function Home() {
                   id="home-tab-select"
                   value={tab}
                   onChange={(event) => setTab(event.target.value as HomeTab)}
-                  className="w-full appearance-none rounded-[1.2rem] border border-[#e2d8c8] bg-[#f5efdf] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
+                  className="w-full appearance-none rounded-[1.2rem] border border-stone-200 bg-[#f0f0f0] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
                 >
                   {HOME_TABS.map((item) => (
                     <option key={item} value={item}>
@@ -323,7 +356,7 @@ export default function Home() {
                 </span>
               </div>
 
-              <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-[#f5efdf] p-1 sm:flex">
+              <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-[#f0f0f0] p-1 sm:flex">
                 {HOME_TABS.map((item) => {
                   const active = tab === item
 
@@ -334,7 +367,7 @@ export default function Home() {
                       onClick={() => setTab(item)}
                       className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
                         active
-                          ? 'bg-[#6f9658] text-white shadow-[0_10px_24px_rgba(111,150,88,0.22)]'
+                          ? 'bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] text-white shadow-[0_10px_24px_rgba(76,149,108,0.22)]'
                           : 'text-stone-600 hover:text-stone-900'
                       }`}
                     >
@@ -357,7 +390,7 @@ export default function Home() {
         ) : null}
 
         {isLoadingState ? (
-          <section className="rounded-[2.5rem] border border-white/70 bg-white/80 px-6 py-12 text-center shadow-[0_24px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl">
+          <section className="rounded-[2.5rem] border border-stone-100 bg-white px-6 py-12 text-center shadow-[0_24px_80px_rgba(76,149,108,0.20)]">
             <p className="font-display text-3xl text-stone-900">Loading your wellness dashboard</p>
             <p className="mt-3 text-sm text-stone-500">Pulling check-ins, insights, family, and reminders from the backend.</p>
           </section>
@@ -369,16 +402,20 @@ export default function Home() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="rounded-[2.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(249,243,231,0.9))] px-6 py-7 shadow-[0_30px_110px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:px-8 sm:py-9"
+              className="rounded-[2.8rem] border border-stone-100 bg-white px-6 py-7 shadow-[0_28px_90px_rgba(76,149,108,0.20)] sm:px-8 sm:py-9"
             >
-              <h1 className="font-display max-w-3xl text-4xl leading-[0.95] text-stone-900 sm:text-6xl">
-                {greeting}
-              </h1>
-              <p className="mt-4 text-base text-stone-500">{todayShortStatus}</p>
-
+              <div className="p-5">
+                <p className="font-semibold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#888888' }}>Today&apos;s Check-In</p>
+                <h1 className="font-display mt-2 max-w-3xl text-[2.5rem] font-semibold leading-tight text-stone-900">
+                  {greeting}
+                </h1>
+                <p className="mt-2 text-sm text-stone-400">
+                  {new Date(`${todayKey}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
               {familyNudgeCandidate ? (
-                <div className="mt-6 rounded-[1.6rem] border border-[#d8e5ca] bg-[#eef5e5] px-5 py-4">
-                  <p className="text-sm font-semibold text-[#456246]">
+                <div className="mt-6 rounded-[1.6rem] border border-[#b8dcc9] bg-[#e0f5ec] px-5 py-4">
+                  <p className="text-sm font-semibold text-[#2c6e49]">
                     {familyNudgeCandidate.name} checked in. Your turn is still open.
                   </p>
                 </div>
@@ -395,22 +432,28 @@ export default function Home() {
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5">
-                  <p className="text-sm text-stone-500">Streak</p>
+                <article className="rounded-[1.8rem] border border-stone-100 bg-white p-5">
+                  <p className="font-semibold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#888888' }}>Streak</p>
                   <p className="font-display mt-3 text-4xl text-stone-900">{streak}</p>
-                  <p className="mt-2 text-sm text-stone-500">consecutive active days</p>
+                  {streak > 0 ? (
+                    <p className="mt-2 text-sm text-stone-500">consecutive active days</p>
+                  ) : null}
                 </article>
-                <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5">
-                  <p className="text-sm text-stone-500">Weekly review</p>
-                  <p className="font-display mt-3 text-3xl text-stone-900">
-                    {weeklyDue ? 'Due' : 'Done'}
-                  </p>
-                  <Link
-                    href="/check-in?period=weekly"
-                    className="mt-5 inline-flex rounded-full border border-[#d5e2c7] bg-[#eef5e5] px-5 py-3 text-sm font-semibold text-[#456246]"
-                  >
-                    Open weekly
-                  </Link>
+                <article className="flex flex-col rounded-[1.8rem] border border-stone-100 bg-white p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#888888' }}>Weekly review</p>
+                      <p className="font-display mt-3 text-3xl text-stone-900">
+                        {weeklyDue ? 'Due' : 'Done'}
+                      </p>
+                    </div>
+                    <Link
+                      href="/check-in?period=weekly"
+                      className="inline-flex rounded-full bg-[linear-gradient(180deg,#f4f4f4_0%,#f0f0f0_100%)] px-5 py-3 text-sm font-semibold text-[#555555]"
+                    >
+                      Open weekly
+                    </Link>
+                  </div>
                 </article>
               </div>
 
@@ -418,7 +461,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={requestNotifications}
-                  className="mt-5 rounded-full border border-[#d5e2c7] bg-[#eef5e5] px-5 py-3 text-sm font-semibold text-[#456246]"
+                  className="mt-5 inline-flex rounded-full bg-[linear-gradient(180deg,#f4f4f4_0%,#f0f0f0_100%)] px-5 py-3 text-sm font-semibold text-[#555555]"
                 >
                   Enable browser reminders
                 </button>
@@ -459,7 +502,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 40 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,243,231,0.98))] shadow-[0_-20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:rounded-[2rem]"
+              className="w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-stone-100 bg-white shadow-[0_-20px_60px_rgba(0,0,0,0.10)] sm:rounded-[2rem]"
               style={{ maxHeight: '90dvh' }}
             >
               <div className="flex items-center justify-between px-6 pb-2 pt-5">
@@ -470,7 +513,7 @@ export default function Home() {
                   type="button"
                   onClick={() => setVoiceCheckinPeriod(null)}
                   aria-label="Close"
-                  className="rounded-full p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                  className="rounded-full p-1.5 text-stone-400 transition hover:bg-[#f0f0f0] hover:text-stone-600"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />

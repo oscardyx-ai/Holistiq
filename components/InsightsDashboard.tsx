@@ -26,7 +26,7 @@ function StatCard({
   caption: string
 }) {
   return (
-    <article className="rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_20px_70px_rgba(190,198,189,0.14)]">
+    <article className="rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_20px_70px_rgba(76,149,108,0.14)]">
       <p className="text-sm text-stone-500">{label}</p>
       <p className="font-display mt-3 text-3xl text-stone-900">{value}</p>
       <p className="mt-2 text-sm leading-6 text-stone-500">{caption}</p>
@@ -103,7 +103,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
 
   if (!latestSummary) {
     return (
-      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 text-center shadow-[0_24px_80px_rgba(190,198,189,0.2)]">
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 text-center shadow-[0_24px_80px_rgba(76,149,108,0.2)]">
         <h2 className="font-display text-3xl text-stone-900">Loading insights</h2>
         <p className="mt-3 text-sm text-stone-500">Running backend scoring and trend aggregation for your latest data.</p>
       </section>
@@ -134,8 +134,8 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <section className="rounded-[2.4rem] border border-stone-200 bg-white p-6 shadow-[0_28px_90px_rgba(190,198,189,0.2)] sm:p-7">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#5c7d49]">
+        <section className="rounded-[2.4rem] border border-stone-200 bg-white p-6 shadow-[0_28px_90px_rgba(76,149,108,0.2)] sm:p-7">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#2c6e49]">
             Daily summary
           </p>
           <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900 sm:text-5xl">
@@ -161,8 +161,8 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
               </p>
             </div>
 
-            <div className="w-full max-w-sm border-t border-[#ddd3c2] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c7d49]">
+            <div className="w-full max-w-sm border-t border-[#e5e5e5] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2c6e49]">
                 Readout
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-600">
@@ -172,7 +172,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 border-t border-[#ddd3c2] pt-6 sm:grid-cols-2">
+          <div className="mt-8 grid gap-4 border-t border-[#e5e5e5] pt-6 sm:grid-cols-2">
             <div className="pr-2">
               <p className="text-sm text-stone-500">Strongest factor</p>
               <p className="font-display mt-3 text-3xl text-stone-900">{strongestFactor.label}</p>
@@ -180,7 +180,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
                 {latestSummary.factor_scores[strongestFactor.key]}/100 on the latest view.
               </p>
             </div>
-            <div className="pr-2 sm:border-l sm:border-[#ddd3c2] sm:pl-6">
+            <div className="pr-2 sm:border-l sm:border-[#e5e5e5] sm:pl-6">
               <p className="text-sm text-stone-500">Most fragile factor</p>
               <p className="font-display mt-3 text-3xl text-stone-900">{lowestFactor.label}</p>
               <p className="mt-2 text-sm leading-6 text-stone-500">
@@ -194,27 +194,13 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
           date={latestDate}
           factorScores={latestSummary.factor_scores}
           className="h-full"
-          height={360}
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <StatCard
-          label="Scoring model"
-          value="Blended score"
-          caption="Each summary combines the latest question-based factor scores with connected app signals before producing the daily total."
-        />
-        <StatCard
-          label="Latest scoring window"
-          value={formatLongDate(latestDate)}
-          caption="This view uses the most recent day with enough check-in and connected app data to calculate the summary."
-        />
-      </div>
-
-      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_24px_80px_rgba(190,198,189,0.2)]">
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_24px_80px_rgba(76,149,108,0.2)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#4c956c]">
               Trends
             </p>
             <h2 className="font-display mt-3 text-3xl text-stone-900">
@@ -234,7 +220,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
               id="insights-range-select"
               value={range}
               onChange={(event) => setRange(event.target.value as RangeKey)}
-              className="w-full appearance-none rounded-[1.2rem] border border-[#e2d8c8] bg-[#f3eddf] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
+              className="w-full appearance-none rounded-[1.2rem] border border-stone-200 bg-[#f0f0f0] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
             >
               {RANGE_OPTIONS.map((item) => (
                 <option key={item} value={item}>
@@ -247,7 +233,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
             </span>
           </div>
 
-          <div className="hidden flex-wrap gap-2 rounded-full bg-[#f3eddf] p-1 sm:flex">
+          <div className="hidden flex-wrap gap-2 rounded-full bg-[#f0f0f0] p-1 sm:flex">
             {RANGE_OPTIONS.map((item) => {
               const active = range === item
 
@@ -257,7 +243,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
                   type="button"
                   onClick={() => setRange(item)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-                    active ? 'bg-[#6f9658] text-white' : 'text-stone-600'
+                    active ? 'bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] text-white' : 'text-stone-600'
                   }`}
                 >
                   {item}
@@ -273,8 +259,8 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
             onClick={() => toggleSeries('total')}
             className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${
               activeSeries.includes('total')
-                ? 'bg-[#1f3c25] text-white'
-                : 'border border-[#ddd3c2] bg-white text-stone-600'
+                ? 'bg-[#2c6e49] text-white'
+                : 'border border-[#e5e5e5] bg-white text-stone-600'
             }`}
           >
             Total
@@ -288,7 +274,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
               className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${
                 activeSeries.includes(factor.key)
                   ? 'text-white'
-                  : 'border border-[#ddd3c2] bg-white text-stone-600'
+                  : 'border border-[#e5e5e5] bg-white text-stone-600'
               }`}
               style={{
                 backgroundColor: activeSeries.includes(factor.key) ? factor.color : undefined,

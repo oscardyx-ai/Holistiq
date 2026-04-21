@@ -58,7 +58,7 @@ export default function TrendLineChart({
       data: points.map((point) => point.label),
       boundaryGap: false,
       axisLine: {
-        lineStyle: { color: '#d7d0c2' },
+        lineStyle: { color: '#e0e0e0' },
       },
       axisTick: {
         show: false,
@@ -79,7 +79,7 @@ export default function TrendLineChart({
         show: false,
       },
       splitLine: {
-        lineStyle: { color: '#ece5d8' },
+        lineStyle: { color: '#efefef' },
       },
       axisLabel: {
         color: '#78716c',
@@ -112,10 +112,10 @@ export default function TrendLineChart({
               data: points.map((point) => point.totalScore),
               lineStyle: {
                 width: 3,
-                color: '#1f3c25',
+                color: '#2c6e49',
               },
               itemStyle: {
-                color: '#1f3c25',
+                color: '#2c6e49',
               },
             },
           ]

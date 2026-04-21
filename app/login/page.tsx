@@ -31,7 +31,7 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-[2.5rem] border border-white/70 bg-white/80 px-8 py-10 shadow-[0_30px_110px_rgba(120,133,107,0.16)] backdrop-blur-xl">
+      <div className="w-full max-w-sm rounded-[2.5rem] border border-stone-100 bg-white px-8 py-10 shadow-[0_30px_110px_rgba(76,149,108,0.10)]">
         <div className="mb-8 flex justify-center">
           <LogoWordmark />
         </div>
