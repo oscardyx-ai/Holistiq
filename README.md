@@ -18,7 +18,7 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 ## Backend
 
-The FastAPI backend lives in [backend/README.md](/Users/d16zheng/Projects/Holistiq/backend/README.md:1).
+The FastAPI backend lives in [backend/README.md](backend/README.md).
 
 Quick start:
 
