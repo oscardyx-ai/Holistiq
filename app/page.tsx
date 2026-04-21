@@ -1,9 +1,10 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import VoiceCheckin, { VoiceCheckinData } from '@/components/VoiceCheckin'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
@@ -30,28 +31,48 @@ import {
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
 
+function MicIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1.5 18.93A8.001 8.001 0 0 1 4 12H6a6 6 0 0 0 12 0h2a8.001 8.001 0 0 1-6.5 7.93V22h-3v-2.07z" />
+    </svg>
+  )
+}
+
 function StatusCard({
   title,
   status,
   href,
   helper,
+  onVoiceTap,
 }: {
   title: string
   status: string
   href: string
   helper: string
+  onVoiceTap: () => void
 }) {
   return (
     <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5">
       <p className="text-sm text-stone-500">{title}</p>
       <p className="font-display mt-3 text-3xl text-stone-900">{status}</p>
       <p className="mt-2 text-sm text-stone-500">{helper}</p>
-      <Link
-        href={href}
-        className="mt-5 inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
-      >
-        Open
-      </Link>
+      <div className="mt-5 flex items-center gap-2">
+        <Link
+          href={href}
+          className="inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+        >
+          Open
+        </Link>
+        <button
+          type="button"
+          onClick={onVoiceTap}
+          aria-label="Voice check-in"
+          className="inline-flex items-center justify-center rounded-full bg-[#6f9658] p-3 text-white transition hover:-translate-y-0.5"
+        >
+          <MicIcon />
+        </button>
+      </div>
     </article>
   )
 }
@@ -63,6 +84,7 @@ export default function Home() {
   const [firstName, setFirstName] = useState<string | null>(null)
   const [isLoadingState, setIsLoadingState] = useState(true)
   const [stateError, setStateError] = useState<string | null>(null)
+  const [voiceCheckinPeriod, setVoiceCheckinPeriod] = useState<'morning' | 'night' | null>(null)
 
   const todayKey = getTodayKey()
   const streak = getConsecutiveStreak(state.sessions, todayKey)
@@ -243,6 +265,10 @@ export default function Home() {
     }
   }
 
+  function handleVoiceSave(_data: VoiceCheckinData) {
+    setVoiceCheckinPeriod(null)
+  }
+
   const todayShortStatus = `${todayStatus.completedSlots}/2 today`
 
   return (
@@ -318,12 +344,14 @@ export default function Home() {
                   status={getDailyStatusLabel(state.sessions, todayKey, 'morning')}
                   href="/check-in?period=morning"
                   helper="Morning questions"
+                  onVoiceTap={() => setVoiceCheckinPeriod('morning')}
                 />
                 <StatusCard
                   title="Night"
                   status={getDailyStatusLabel(state.sessions, todayKey, 'night')}
                   href="/check-in?period=night"
                   helper="Evening questions"
+                  onVoiceTap={() => setVoiceCheckinPeriod('night')}
                 />
               </div>
 
@@ -375,6 +403,49 @@ export default function Home() {
           />
         ) : null}
       </div>
+
+      <AnimatePresence>
+        {voiceCheckinPeriod && (
+          <motion.div
+            key="voice-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setVoiceCheckinPeriod(null) }}
+          >
+            <motion.div
+              key="voice-sheet"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+              className="w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,243,231,0.98))] shadow-[0_-20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:rounded-[2rem]"
+              style={{ maxHeight: '90dvh' }}
+            >
+              <div className="flex items-center justify-between px-6 pb-2 pt-5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-stone-400">
+                  {voiceCheckinPeriod === 'morning' ? 'Day' : 'Night'} check-in
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVoiceCheckinPeriod(null)}
+                  aria-label="Close"
+                  className="rounded-full p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </button>
+              </div>
+              <VoiceCheckin
+                onSave={handleVoiceSave}
+                onCancel={() => setVoiceCheckinPeriod(null)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   )
 }
