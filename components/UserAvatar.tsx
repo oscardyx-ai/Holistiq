@@ -10,11 +10,9 @@ type UserInfo = {
 }
 
 export default function UserAvatar() {
-  const [mounted, setMounted] = useState(false)
   const [user, setUser] = useState<UserInfo | null>(null)
 
   useEffect(() => {
-    setMounted(true)
     const supabase = createClient()
 
     async function load() {
@@ -46,8 +44,6 @@ export default function UserAvatar() {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  if (!mounted) return null
 
   if (!user) {
     return (

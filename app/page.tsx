@@ -10,7 +10,6 @@ import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
 import {
-  createDefaultState,
   WellnessState,
   getConsecutiveStreak,
   getDailyStatusLabel,
@@ -19,9 +18,15 @@ import {
   getTodayKey,
   getTodayStatus,
   isWeeklyCheckInDue,
-  readWellnessState,
-  writeWellnessState,
 } from '@/components/checkInData'
+import {
+  createEmptyWellnessState,
+  createFamilyMember,
+  fetchWellnessState,
+  updateFamilyMemberSharing,
+  updatePrivacySettings,
+  updateReminderSettings,
+} from '@/lib/wellness-api'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
 
@@ -52,10 +57,12 @@ function StatusCard({
 }
 
 export default function Home() {
-  const [state, setState] = useState<WellnessState>(() => createDefaultState())
+  const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
   const [tab, setTab] = useState<HomeTab>('today')
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [firstName, setFirstName] = useState<string | null>(null)
+  const [isLoadingState, setIsLoadingState] = useState(true)
+  const [stateError, setStateError] = useState<string | null>(null)
 
   const todayKey = getTodayKey()
   const streak = getConsecutiveStreak(state.sessions, todayKey)
@@ -67,9 +74,21 @@ export default function Home() {
     ? `${getGreetingForDate()}, ${firstName}`
     : getGreetingForDate()
 
-  useEffect(() => {
-    setState(readWellnessState())
+  async function refreshState() {
+    setIsLoadingState(true)
+    setStateError(null)
 
+    try {
+      const nextState = await fetchWellnessState()
+      setState(nextState)
+    } catch {
+      setStateError('Could not load your latest wellness data.')
+    } finally {
+      setIsLoadingState(false)
+    }
+  }
+
+  useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermission(Notification.permission)
     }
@@ -80,9 +99,15 @@ export default function Home() {
       const full = user?.user_metadata?.full_name ?? user?.user_metadata?.name
       setFirstName(full ? full.split(' ')[0] : null)
     })
+
+    void refreshState()
   }, [])
 
   useEffect(() => {
+    if (isLoadingState) {
+      return
+    }
+
     if (typeof window === 'undefined' || !('Notification' in window)) {
       return
     }
@@ -104,15 +129,16 @@ export default function Home() {
           body: 'Night check-in is still open. Take a calm minute to log today.',
         })
 
-        const nextState = {
-          ...state,
-          reminders: {
-            ...state.reminders,
-            nightReminderLastSentDate: todayKey,
-          },
+        const nextReminders = {
+          ...state.reminders,
+          nightReminderLastSentDate: todayKey,
         }
-        setState(nextState)
-        writeWellnessState(nextState)
+
+        setState((currentState) => ({
+          ...currentState,
+          reminders: nextReminders,
+        }))
+        void updateReminderSettings(nextReminders)
       }
 
       if (
@@ -136,14 +162,15 @@ export default function Home() {
 
       window.setTimeout(() => {
         setState((currentState) => {
+          const nextReminders = {
+            ...currentState.reminders,
+            familyNudgeLastSentAt: familyNudgeCandidate.lastCheckInAt,
+          }
           const nextState = {
             ...currentState,
-            reminders: {
-              ...currentState.reminders,
-              familyNudgeLastSentAt: familyNudgeCandidate.lastCheckInAt,
-            },
+            reminders: nextReminders,
           }
-          writeWellnessState(nextState)
+          void updateReminderSettings(nextReminders)
           return nextState
         })
       }, 0)
@@ -154,7 +181,7 @@ export default function Home() {
         window.clearTimeout(timeoutId)
       }
     }
-  }, [familyNudgeCandidate, state, todayKey, todayStatus.nightComplete])
+  }, [familyNudgeCandidate, isLoadingState, state, todayKey, todayStatus.nightComplete])
 
   function requestNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -166,9 +193,54 @@ export default function Home() {
     })
   }
 
-  function updateState(nextState: WellnessState) {
-    setState(nextState)
-    writeWellnessState(nextState)
+  async function handleAddFamilyMember(input: { name: string; relation: string }) {
+    await createFamilyMember(input)
+    await refreshState()
+  }
+
+  async function handleUpdatePrivacy(nextPrivacy: WellnessState['privacy']) {
+    const previousSharedIds = new Set(state.privacy.sharedFamilyMemberIds)
+    const nextSharedIds = new Set(nextPrivacy.sharedFamilyMemberIds)
+
+    setState((currentState) => ({
+      ...currentState,
+      privacy: nextPrivacy,
+    }))
+
+    try {
+      await updatePrivacySettings(nextPrivacy)
+
+      const changedMembers = state.familyMembers.filter((member) => {
+        const previouslyShared = previousSharedIds.has(member.id)
+        const nextShared = nextSharedIds.has(member.id)
+        return previouslyShared !== nextShared
+      })
+
+      await Promise.all(
+        changedMembers.map((member) =>
+          updateFamilyMemberSharing(member.id, nextSharedIds.has(member.id))
+        )
+      )
+
+      await refreshState()
+    } catch {
+      setStateError('Could not save your sharing preferences.')
+      await refreshState()
+    }
+  }
+
+  async function handleUpdateReminders(nextReminders: WellnessState['reminders']) {
+    setState((currentState) => ({
+      ...currentState,
+      reminders: nextReminders,
+    }))
+
+    try {
+      await updateReminderSettings(nextReminders)
+    } catch {
+      setStateError('Could not save your reminder settings.')
+      await refreshState()
+    }
   }
 
   const todayShortStatus = `${todayStatus.completedSlots}/2 today`
@@ -206,8 +278,21 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === 'today' ? (
-          <section>
+        {stateError ? (
+          <div className="rounded-[1.4rem] border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {stateError}
+          </div>
+        ) : null}
+
+        {isLoadingState ? (
+          <section className="rounded-[2.5rem] border border-white/70 bg-white/80 px-6 py-12 text-center shadow-[0_24px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl">
+            <p className="font-display text-3xl text-stone-900">Loading your wellness dashboard</p>
+            <p className="mt-3 text-sm text-stone-500">Pulling check-ins, insights, family, and reminders from the backend.</p>
+          </section>
+        ) : null}
+
+        {!isLoadingState && tab === 'today' ? (
+          <section className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -275,18 +360,18 @@ export default function Home() {
           </section>
         ) : null}
 
-        {tab === 'insights' ? <InsightsDashboard state={state} /> : null}
+        {!isLoadingState && tab === 'insights' ? <InsightsDashboard state={state} /> : null}
 
-        {tab === 'learn' ? <LearnTab /> : null}
+        {!isLoadingState && tab === 'learn' ? <LearnTab /> : null}
 
-        {tab === 'family' ? (
+        {!isLoadingState && tab === 'family' ? (
           <FamilyTab
             familyMembers={state.familyMembers}
             privacy={state.privacy}
             reminders={state.reminders}
-            onUpdateFamilyMembers={(familyMembers) => updateState({ ...state, familyMembers })}
-            onUpdatePrivacy={(privacy) => updateState({ ...state, privacy })}
-            onUpdateReminders={(reminders) => updateState({ ...state, reminders })}
+            onAddFamilyMember={handleAddFamilyMember}
+            onUpdatePrivacy={handleUpdatePrivacy}
+            onUpdateReminders={handleUpdateReminders}
           />
         ) : null}
       </div>

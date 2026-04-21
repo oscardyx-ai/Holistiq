@@ -11,9 +11,9 @@ interface FamilyTabProps {
   familyMembers: FamilyMember[]
   privacy: PrivacySettings
   reminders: ReminderSettings
-  onUpdateFamilyMembers: (members: FamilyMember[]) => void
-  onUpdatePrivacy: (privacy: PrivacySettings) => void
-  onUpdateReminders: (reminders: ReminderSettings) => void
+  onAddFamilyMember: (input: { name: string; relation: string }) => Promise<void>
+  onUpdatePrivacy: (privacy: PrivacySettings) => Promise<void>
+  onUpdateReminders: (reminders: ReminderSettings) => Promise<void>
 }
 
 function Panel({
@@ -38,31 +38,31 @@ export default function FamilyTab({
   familyMembers,
   privacy,
   reminders,
-  onUpdateFamilyMembers,
+  onAddFamilyMember,
   onUpdatePrivacy,
   onUpdateReminders,
 }: FamilyTabProps) {
   const [inviteName, setInviteName] = useState('')
   const [inviteRelation, setInviteRelation] = useState('')
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
 
-  function addMember() {
+  async function addMember() {
     const name = inviteName.trim()
 
-    if (!name) {
+    if (!name || isSubmittingInvite) {
       return
     }
 
-    onUpdateFamilyMembers([
-      ...familyMembers,
-      {
-        id: `fam-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${familyMembers.length + 1}`,
+    setIsSubmittingInvite(true)
+
+    try {
+      await onAddFamilyMember({
         name,
         relation: inviteRelation.trim() || 'Family member',
-        streak: 0,
-        checkedInToday: false,
-        lastCheckInAt: '',
-      },
-    ])
+      })
+    } finally {
+      setIsSubmittingInvite(false)
+    }
 
     setInviteName('')
     setInviteRelation('')
@@ -128,10 +128,11 @@ export default function FamilyTab({
             />
             <button
               type="button"
-              onClick={addMember}
-              className="rounded-[1rem] bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white"
+              onClick={() => void addMember()}
+              disabled={isSubmittingInvite}
+              className="rounded-[1rem] bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Add to family
+              {isSubmittingInvite ? 'Adding...' : 'Add to family'}
             </button>
           </div>
         </div>
@@ -153,7 +154,7 @@ export default function FamilyTab({
               type="checkbox"
               checked={privacy.shareGraphsWithFamily}
               onChange={(event) =>
-                onUpdatePrivacy({
+                void onUpdatePrivacy({
                   ...privacy,
                   shareGraphsWithFamily: event.target.checked,
                 })
@@ -172,7 +173,7 @@ export default function FamilyTab({
                     key={member.id}
                     type="button"
                     onClick={() =>
-                      onUpdatePrivacy({
+                      void onUpdatePrivacy({
                         ...privacy,
                         sharedFamilyMemberIds: selected
                           ? privacy.sharedFamilyMemberIds.filter((id) => id !== member.id)
@@ -211,7 +212,7 @@ export default function FamilyTab({
               type="checkbox"
               checked={reminders.nightReminderEnabled}
               onChange={(event) =>
-                onUpdateReminders({
+                void onUpdateReminders({
                   ...reminders,
                   nightReminderEnabled: event.target.checked,
                 })
@@ -231,7 +232,7 @@ export default function FamilyTab({
               type="checkbox"
               checked={reminders.familyNudgesEnabled}
               onChange={(event) =>
-                onUpdateReminders({
+                void onUpdateReminders({
                   ...reminders,
                   familyNudgesEnabled: event.target.checked,
                 })
