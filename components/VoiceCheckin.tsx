@@ -162,7 +162,7 @@ function encodeWav(chunks: Float32Array[], sampleRate: number) {
 }
 
 interface Props {
-  onSave: (data: VoiceCheckinData) => void
+  onSave: (data: VoiceCheckinData) => void | Promise<void>
   onCancel?: () => void
 }
 
@@ -171,6 +171,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
   const [liveTranscript, setLiveTranscript] = useState('')
   const [finalTranscript, setFinalTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [form, setForm] = useState<VoiceCheckinData>({
     mood: null, energy: null, sleep: null, pain: null, stress: null,
     connection: null, routine: null, meals: null, environment: null,
@@ -339,6 +340,21 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
     setForm((prev: VoiceCheckinData) => ({ ...prev, [key]: value }))
   }
 
+  async function saveReviewedCheckin() {
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      await onSave(form)
+      setPhase('done')
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to save check-in. Please try again.'
+      setError(message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const missingCount = Object.values(form).filter((v) => v === null).length
 
   return (
@@ -452,6 +468,12 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               </div>
             )}
 
+            {error && (
+              <p className="rounded-[1rem] border border-[#f5c6c6] bg-[#fff5f5] px-4 py-3 text-sm text-[#c0392b]">
+                {error}
+              </p>
+            )}
+
             <div className="flex flex-col gap-3">
               <SliderField label="Mood" value={form.mood} min={1} max={10} onChange={(v) => setField('mood', v)} missing={form.mood === null} />
               <ChoiceField label="Energy" options={ENERGY_OPTIONS} value={form.energy} onChange={(v) => setField('energy', v)} missing={form.energy === null} />
@@ -477,10 +499,11 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
               )}
               <button
                 type="button"
-                onClick={() => { onSave(form); setPhase('done') }}
-                className="flex-1 rounded-full bg-[#6b8f56] py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(107,143,86,0.25)] transition hover:-translate-y-0.5 active:translate-y-0"
+                onClick={saveReviewedCheckin}
+                disabled={isSaving}
+                className="flex-1 rounded-full bg-[#6b8f56] py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(107,143,86,0.25)] transition hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Save Check-in
+                {isSaving ? 'Saving...' : 'Save Check-in'}
               </button>
             </div>
           </motion.div>

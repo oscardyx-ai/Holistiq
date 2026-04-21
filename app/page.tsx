@@ -4,15 +4,17 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import VoiceCheckin from '@/components/VoiceCheckin'
+import VoiceCheckin, { type VoiceCheckinData } from '@/components/VoiceCheckin'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
 import {
-  WellnessState,
+  type AnswerValue,
+  type WellnessState,
   getConsecutiveStreak,
+  getDailyQuestionId,
   getDailyStatusLabel,
   getFamilyNudgeCandidate,
   getGreetingForDate,
@@ -24,12 +26,91 @@ import {
   createEmptyWellnessState,
   createFamilyMember,
   fetchWellnessState,
+  saveCheckIn,
   updateFamilyMemberSharing,
   updatePrivacySettings,
   updateReminderSettings,
 } from '@/lib/wellness-api'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
+type DailyCheckInPeriod = 'morning' | 'night'
+
+const VOICE_ENERGY_ANSWERS: Record<NonNullable<VoiceCheckinData['energy']>, string> = {
+  terrible: 'Terrible',
+  bad: 'Bad',
+  neutral: 'Neutral',
+  good: 'Good',
+  great: 'Great',
+}
+
+const VOICE_SLEEP_ANSWERS: Record<NonNullable<VoiceCheckinData['sleep']>, string> = {
+  terrible: 'Terrible',
+  bad: 'Bad',
+  neutral: 'Neutral',
+  good: 'Good',
+  great: 'Great',
+}
+
+const VOICE_CONNECTION_ANSWERS: Record<NonNullable<VoiceCheckinData['connection']>, string> = {
+  'not at all': 'Not at all connected',
+  'a little': 'A little connected',
+  moderately: 'Moderately connected',
+  very: 'Very connected',
+}
+
+const VOICE_ROUTINE_ANSWERS: Record<NonNullable<VoiceCheckinData['routine']>, string> = {
+  offtrack: 'Off track',
+  even: 'Uneven',
+  okay: 'Okay',
+  strong: 'Strong',
+}
+
+const VOICE_MEAL_ANSWERS: Record<NonNullable<VoiceCheckinData['meals']>, string> = {
+  'not at all': 'Not at all balanced',
+  'a little': 'A little balanced',
+  mostly: 'Mostly balanced',
+  very: 'Very balanced',
+}
+
+const VOICE_ENVIRONMENT_ANSWERS: Record<NonNullable<VoiceCheckinData['environment']>, string> = {
+  'very poor': 'Very poor',
+  poor: 'Poor',
+  ok: 'Okay',
+  good: 'Good',
+  excellent: 'Excellent',
+}
+
+const VOICE_MEDICATION_ANSWERS: Record<NonNullable<VoiceCheckinData['medication']>, string> = {
+  no: 'No',
+  partly: 'Partly',
+  yes: 'Yes',
+  'N/A': 'Not applicable',
+}
+
+const VOICE_ACTIVITY_ANSWERS: Record<NonNullable<VoiceCheckinData['activity']>, string> = {
+  none: 'None',
+  light: 'Light',
+  moderate: 'Moderate',
+  high: 'High',
+}
+
+function mapVoiceCheckinToAnswers(period: DailyCheckInPeriod, data: VoiceCheckinData) {
+  const answers: Record<string, AnswerValue> = {}
+
+  if (data.mood !== null) answers[getDailyQuestionId(period, 'feeling')] = data.mood
+  if (data.energy !== null) answers[getDailyQuestionId(period, 'energy')] = VOICE_ENERGY_ANSWERS[data.energy]
+  if (data.sleep !== null) answers[getDailyQuestionId(period, 'sleep')] = VOICE_SLEEP_ANSWERS[data.sleep]
+  if (data.pain !== null) answers[getDailyQuestionId(period, 'pain')] = data.pain
+  if (data.stress !== null) answers[getDailyQuestionId(period, 'stress')] = data.stress
+  if (data.connection !== null) answers[getDailyQuestionId(period, 'social_connection')] = VOICE_CONNECTION_ANSWERS[data.connection]
+  if (data.routine !== null) answers[getDailyQuestionId(period, 'routine')] = VOICE_ROUTINE_ANSWERS[data.routine]
+  if (data.meals !== null) answers[getDailyQuestionId(period, 'meals')] = VOICE_MEAL_ANSWERS[data.meals]
+  if (data.environment !== null) answers[getDailyQuestionId(period, 'environment')] = VOICE_ENVIRONMENT_ANSWERS[data.environment]
+  if (data.medication !== null) answers[getDailyQuestionId(period, 'medication')] = VOICE_MEDICATION_ANSWERS[data.medication]
+  if (data.activity !== null) answers[getDailyQuestionId(period, 'activity')] = VOICE_ACTIVITY_ANSWERS[data.activity]
+
+  return answers
+}
 
 function MicIcon() {
   return (
@@ -265,8 +346,24 @@ export default function Home() {
     }
   }
 
-  function handleVoiceSave() {
+  async function handleVoiceSave(data: VoiceCheckinData) {
+    if (!voiceCheckinPeriod) {
+      return
+    }
+
+    const answers = mapVoiceCheckinToAnswers(voiceCheckinPeriod, data)
+    if (!Object.keys(answers).length) {
+      throw new Error('Add at least one answer before saving your check-in.')
+    }
+
+    await saveCheckIn({
+      entryDate: todayKey,
+      period: voiceCheckinPeriod,
+      answers,
+    })
+
     setVoiceCheckinPeriod(null)
+    await refreshState()
   }
 
   const todayShortStatus = `${todayStatus.completedSlots}/2 today`

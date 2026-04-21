@@ -191,20 +191,40 @@ def score_connected_apps(snapshots: list[SnapshotInput]) -> list[dict[str, Any]]
     return observations
 
 
-def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dict[str, Any]]:
+def get_daily_answer_prefix(period: CheckInPeriod) -> str | None:
+    if period == CheckInPeriod.MORNING:
+        return "morning"
+    if period == CheckInPeriod.NIGHT:
+        return "night"
+    return None
+
+
+def has_answer(answers: dict[str, Any], key: str) -> bool:
+    return key in answers and answers[key] is not None
+
+
+def evaluate_daily_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dict[str, Any]]:
+    prefix = get_daily_answer_prefix(period)
     observations: list[dict[str, Any]] = []
 
-    if period == CheckInPeriod.MORNING:
+    if prefix is None:
+        return observations
+
+    feeling_key = f"{prefix}_feeling"
+    if has_answer(answers, feeling_key):
         observations.extend(
             create_observations(
-                normalize_score(float(answers.get("morning_feeling", 5)), 1, 10),
+                normalize_score(float(answers[feeling_key]), 1, 10),
                 [{"factor": "mental", "weight": 1.3}, {"factor": "lifestyle", "weight": 0.4}],
                 "How are you feeling today?",
             )
         )
+
+    energy_key = f"{prefix}_energy"
+    if has_answer(answers, energy_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("morning_energy", ENERGY_OPTIONS[0])), ENERGY_OPTIONS),
+                get_choice_score(str(answers[energy_key]), ENERGY_OPTIONS),
                 [
                     {"factor": "lifestyle", "weight": 1.1},
                     {"factor": "activity", "weight": 0.4},
@@ -213,9 +233,12 @@ def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dic
                 "How is your energy?",
             )
         )
+
+    sleep_key = f"{prefix}_sleep"
+    if has_answer(answers, sleep_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("morning_sleep", SLEEP_OPTIONS[0])), SLEEP_OPTIONS),
+                get_choice_score(str(answers[sleep_key]), SLEEP_OPTIONS),
                 [
                     {"factor": "lifestyle", "weight": 1.1},
                     {"factor": "environment", "weight": 0.4},
@@ -225,17 +248,21 @@ def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dic
             )
         )
 
-    if period == CheckInPeriod.NIGHT:
+    pain_key = f"{prefix}_pain"
+    if has_answer(answers, pain_key):
         observations.extend(
             create_observations(
-                invert_score(float(answers.get("night_pain", 0)), 0, 10),
+                invert_score(float(answers[pain_key]), 0, 10),
                 [{"factor": "pain", "weight": 1.3}, {"factor": "mental", "weight": 0.35}],
                 "How intense was your pain today?",
             )
         )
+
+    stress_key = f"{prefix}_stress"
+    if has_answer(answers, stress_key):
         observations.extend(
             create_observations(
-                invert_score(float(answers.get("night_stress", 5)), 1, 10),
+                invert_score(float(answers[stress_key]), 1, 10),
                 [
                     {"factor": "mental", "weight": 1.1},
                     {"factor": "environment", "weight": 0.35},
@@ -244,38 +271,50 @@ def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dic
                 "How stressful did the day feel?",
             )
         )
+
+    connection_key = f"{prefix}_social_connection"
+    if has_answer(answers, connection_key):
         observations.extend(
             create_observations(
-                get_choice_score(
-                    str(answers.get("night_social_connection", SOCIAL_CONNECTION_OPTIONS[0])),
-                    SOCIAL_CONNECTION_OPTIONS,
-                ),
+                get_choice_score(str(answers[connection_key]), SOCIAL_CONNECTION_OPTIONS),
                 [{"factor": "social", "weight": 1.2}, {"factor": "mental", "weight": 0.35}],
                 "How connected did you feel to other people today?",
             )
         )
+
+    routine_key = f"{prefix}_routine"
+    if has_answer(answers, routine_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("night_routine", ROUTINE_OPTIONS[0])), ROUTINE_OPTIONS),
+                get_choice_score(str(answers[routine_key]), ROUTINE_OPTIONS),
                 [{"factor": "lifestyle", "weight": 1.15}, {"factor": "mental", "weight": 0.25}],
                 "How well did your routine support you today?",
             )
         )
+
+    meals_key = f"{prefix}_meals"
+    if has_answer(answers, meals_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("night_meals", MEAL_OPTIONS[0])), MEAL_OPTIONS),
+                get_choice_score(str(answers[meals_key]), MEAL_OPTIONS),
                 [{"factor": "diet", "weight": 1.2}, {"factor": "lifestyle", "weight": 0.3}],
                 "How balanced were your meals today?",
             )
         )
+
+    environment_key = f"{prefix}_environment"
+    if has_answer(answers, environment_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("night_environment", ENVIRONMENT_OPTIONS[0])), ENVIRONMENT_OPTIONS),
+                get_choice_score(str(answers[environment_key]), ENVIRONMENT_OPTIONS),
                 [{"factor": "environment", "weight": 1.15}, {"factor": "mental", "weight": 0.25}],
                 "How comfortable and calm did your environment feel today?",
             )
         )
-        medication_answer = str(answers.get("night_medication", "No"))
+
+    medication_key = f"{prefix}_medication"
+    if has_answer(answers, medication_key):
+        medication_answer = str(answers[medication_key])
         medication_score = get_choice_score(medication_answer, ["No", "Partly", "Yes", "Not applicable"])
         if medication_answer == "Not applicable":
             medication_score = 80
@@ -286,13 +325,22 @@ def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dic
                 "Did you take your medications as planned today?",
             )
         )
+
+    activity_key = f"{prefix}_activity"
+    if has_answer(answers, activity_key):
         observations.extend(
             create_observations(
-                get_choice_score(str(answers.get("night_activity", ACTIVITY_OPTIONS[0])), ACTIVITY_OPTIONS),
+                get_choice_score(str(answers[activity_key]), ACTIVITY_OPTIONS),
                 [{"factor": "activity", "weight": 1.2}, {"factor": "lifestyle", "weight": 0.35}],
                 "How active were you today?",
             )
         )
+
+    return observations
+
+
+def evaluate_answers(period: CheckInPeriod, answers: dict[str, Any]) -> list[dict[str, Any]]:
+    observations = evaluate_daily_answers(period, answers)
 
     if period == CheckInPeriod.WEEKLY:
         observations.extend(
