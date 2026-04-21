@@ -42,6 +42,32 @@ interface SpeechRecognitionLike extends EventTarget {
 }
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 
+const TOPIC_KEYWORDS: Record<string, string[]> = {
+  Sleep:       ['sleep', 'slept', 'tired', 'rest', 'hours'],
+  Energy:      ['energy', 'energetic', 'exhausted', 'drained', 'awake'],
+  Mood:        ['mood', 'feeling', 'happy', 'sad', 'anxious', 'good', 'bad'],
+  Pain:        ['pain', 'hurt', 'ache', 'sore', 'discomfort'],
+  Stress:      ['stress', 'stressed', 'overwhelmed', 'anxious', 'calm'],
+  Meals:       ['eat', 'ate', 'food', 'meal', 'lunch', 'dinner', 'breakfast', 'diet'],
+  Activity:    ['walk', 'exercise', 'workout', 'active', 'gym', 'run'],
+  Connection:  ['friend', 'family', 'social', 'talk', 'connected', 'lonely'],
+  Routine:     ['routine', 'schedule', 'productive', 'offtrack', 'structured'],
+  Environment: ['environment', 'home', 'space', 'calm', 'noisy'],
+  Medication:  ['medication', 'medicine', 'pill', 'dose', 'took'],
+}
+const TOPICS = Object.keys(TOPIC_KEYWORDS)
+
+function detectCoveredTopics(transcript: string): Set<string> {
+  const lower = transcript.toLowerCase()
+  const covered = new Set<string>()
+  for (const topic of TOPICS) {
+    if (TOPIC_KEYWORDS[topic].some((kw) => lower.includes(kw))) {
+      covered.add(topic)
+    }
+  }
+  return covered
+}
+
 const ENERGY_OPTIONS = ['terrible', 'bad', 'neutral', 'good', 'great'] as const
 const SLEEP_OPTIONS = ['terrible', 'bad', 'neutral', 'good', 'great'] as const
 const CONNECTION_OPTIONS = ['not at all', 'a little', 'moderately', 'very'] as const
@@ -322,11 +348,20 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
             <div className="w-full max-w-sm">
               <p className="mb-2 font-semibold uppercase" style={{ fontSize: '0.65rem', letterSpacing: '0.12em', color: '#aaaaaa' }}>Topics to cover</p>
               <div className="flex flex-wrap gap-1.5">
-                {['Sleep', 'Energy', 'Mood', 'Pain', 'Stress', 'Meals', 'Activity', 'Connection', 'Routine', 'Environment', 'Medication'].map((topic) => (
-                  <span key={topic} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-500">
-                    {topic}
-                  </span>
-                ))}
+                {(() => {
+                  const covered = detectCoveredTopics(liveTranscript)
+                  return TOPICS.map((topic) =>
+                    covered.has(topic) ? (
+                      <span key={topic} className="rounded-full border border-[#4c956c] bg-[#4c956c] px-3 py-1 text-xs font-semibold text-white">
+                        {topic}
+                      </span>
+                    ) : (
+                      <span key={topic} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-500">
+                        {topic}
+                      </span>
+                    )
+                  )
+                })()}
               </div>
             </div>
           </motion.div>
