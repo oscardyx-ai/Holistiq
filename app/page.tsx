@@ -9,17 +9,19 @@ import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
 import LogoWordmark from '@/components/LogoWordmark'
+import SelectChevron from '@/components/SelectChevron'
 import UserAvatar from '@/components/UserAvatar'
 import {
   WellnessState,
   getConsecutiveStreak,
-  getDailyStatusLabel,
   getFamilyNudgeCandidate,
-  getGreetingForDate,
-  getTodayKey,
+  getGreetingForHour,
+  getPeriodLabel,
+  getSessionForDate,
   getTodayStatus,
   isWeeklyCheckInDue,
 } from '@/components/checkInData'
+import { useCheckInWindow } from '@/lib/use-check-in-window'
 import {
   createEmptyWellnessState,
   createFamilyMember,
@@ -30,6 +32,7 @@ import {
 } from '@/lib/wellness-api'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
+const HOME_TABS: HomeTab[] = ['today', 'insights', 'learn', 'family']
 
 function MicIcon() {
   return (
@@ -39,45 +42,54 @@ function MicIcon() {
   )
 }
 
-function StatusCard({
+function QuestionnaireCard({
   title,
   status,
   href,
-  helper,
   onVoiceTap,
+  showVoiceButton,
 }: {
   title: string
   status: string
   href: string
-  helper: string
   onVoiceTap: () => void
+  showVoiceButton: boolean
 }) {
   return (
-    <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5">
-      <p className="text-sm text-stone-500">{title}</p>
-      <p className="font-display mt-3 text-3xl text-stone-900">{status}</p>
-      <p className="mt-2 text-sm text-stone-500">{helper}</p>
-      <div className="mt-5 flex items-center gap-2">
-        <Link
-          href={href}
-          className="inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
-        >
-          Open
-        </Link>
-        <button
-          type="button"
-          onClick={onVoiceTap}
-          aria-label="Voice check-in"
-          className="inline-flex items-center justify-center rounded-full bg-[#6f9658] p-3 text-white transition hover:-translate-y-0.5"
-        >
-          <MicIcon />
-        </button>
+    <article className="rounded-[1.8rem] border border-[#ece3d4] bg-white/84 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-stone-500">Questionnaire</p>
+          <h2 className="font-display mt-3 text-4xl text-stone-900 sm:text-5xl">{title}</h2>
+          <p className="mt-3 text-sm text-stone-500">{status}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href={href}
+            className="inline-flex rounded-full bg-[#6f9658] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+          >
+            Get Started
+          </Link>
+          {showVoiceButton ? (
+            <button
+              type="button"
+              onClick={onVoiceTap}
+              aria-label="Voice check-in"
+              className="inline-flex items-center justify-center rounded-full bg-[#6f9658] p-3 text-white transition hover:-translate-y-0.5"
+            >
+              <MicIcon />
+            </button>
+          ) : null}
+        </div>
       </div>
+
     </article>
   )
 }
 
 export default function Home() {
+  const checkInWindow = useCheckInWindow()
   const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
   const [tab, setTab] = useState<HomeTab>('today')
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
@@ -86,15 +98,26 @@ export default function Home() {
   const [stateError, setStateError] = useState<string | null>(null)
   const [voiceCheckinPeriod, setVoiceCheckinPeriod] = useState<'morning' | 'night' | null>(null)
 
-  const todayKey = getTodayKey()
+  const todayKey = checkInWindow.activeDateKey
+  const activeDailyPeriod = checkInWindow.activePeriod
   const streak = getConsecutiveStreak(state.sessions, todayKey)
   const todayStatus = getTodayStatus(state.sessions, todayKey)
-  const weeklyDue = isWeeklyCheckInDue(state.sessions)
+  const weeklyDue = isWeeklyCheckInDue(state.sessions, new Date(`${todayKey}T12:00:00`))
   const familyNudgeCandidate = getFamilyNudgeCandidate(state.familyMembers, state.sessions, todayKey)
+  const needsMorningCatchUp =
+    activeDailyPeriod === 'night' && !getSessionForDate(state.sessions, todayKey, 'morning')
+  const activeCheckInComplete =
+    activeDailyPeriod === 'morning'
+      ? todayStatus.morningComplete
+      : todayStatus.nightComplete && (!needsMorningCatchUp || todayStatus.morningComplete)
+  const activeCheckInHref = `/check-in?period=${activeDailyPeriod}`
+  const activeCheckInTitle = `${getPeriodLabel(activeDailyPeriod)} check-in`
+  const activeCheckInStatus = activeCheckInComplete ? 'Completed' : 'Open'
+  const canUseVoiceCheckIn = !needsMorningCatchUp
 
   const greeting = firstName
-    ? `${getGreetingForDate()}, ${firstName}`
-    : getGreetingForDate()
+    ? `${getGreetingForHour(checkInWindow.hour)}, ${firstName}`
+    : getGreetingForHour(checkInWindow.hour)
 
   async function refreshState() {
     setIsLoadingState(true)
@@ -274,13 +297,34 @@ export default function Home() {
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="rounded-[2.5rem] border border-white/70 bg-white/75 px-6 py-5 shadow-[0_20px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl sm:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <header className="relative z-20 rounded-[2.5rem] border border-white/70 bg-white/75 px-6 py-5 shadow-[0_20px_80px_rgba(120,133,107,0.12)] backdrop-blur-xl sm:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <LogoWordmark compact />
 
-            <div className="flex items-center gap-4">
-              <nav className="flex flex-wrap items-center gap-2 rounded-full bg-[#f5efdf] p-1">
-                {(['today', 'insights', 'learn', 'family'] as HomeTab[]).map((item) => {
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <div className="relative sm:hidden">
+                <label htmlFor="home-tab-select" className="sr-only">
+                  Choose a dashboard section
+                </label>
+                <select
+                  id="home-tab-select"
+                  value={tab}
+                  onChange={(event) => setTab(event.target.value as HomeTab)}
+                  className="w-full appearance-none rounded-[1.2rem] border border-[#e2d8c8] bg-[#f5efdf] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
+                >
+                  {HOME_TABS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-500">
+                  <SelectChevron />
+                </span>
+              </div>
+
+              <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-[#f5efdf] p-1 sm:flex">
+                {HOME_TABS.map((item) => {
                   const active = tab === item
 
                   return (
@@ -299,7 +343,9 @@ export default function Home() {
                   )
                 })}
               </nav>
-              <UserAvatar />
+              <div className="self-start sm:self-auto">
+                <UserAvatar />
+              </div>
             </div>
           </div>
         </header>
@@ -325,7 +371,7 @@ export default function Home() {
               transition={{ duration: 0.35, ease: 'easeOut' }}
               className="rounded-[2.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(249,243,231,0.9))] px-6 py-7 shadow-[0_30px_110px_rgba(120,133,107,0.16)] backdrop-blur-xl sm:px-8 sm:py-9"
             >
-              <h1 className="font-display text-5xl leading-[0.95] text-stone-900 sm:text-6xl whitespace-nowrap">
+              <h1 className="font-display max-w-3xl text-4xl leading-[0.95] text-stone-900 sm:text-6xl">
                 {greeting}
               </h1>
               <p className="mt-4 text-base text-stone-500">{todayShortStatus}</p>
@@ -338,20 +384,13 @@ export default function Home() {
                 </div>
               ) : null}
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <StatusCard
-                  title="Day"
-                  status={getDailyStatusLabel(state.sessions, todayKey, 'morning')}
-                  href="/check-in?period=morning"
-                  helper="Morning questions"
-                  onVoiceTap={() => setVoiceCheckinPeriod('morning')}
-                />
-                <StatusCard
-                  title="Night"
-                  status={getDailyStatusLabel(state.sessions, todayKey, 'night')}
-                  href="/check-in?period=night"
-                  helper="Evening questions"
-                  onVoiceTap={() => setVoiceCheckinPeriod('night')}
+              <div className="mt-6">
+                <QuestionnaireCard
+                  title={activeCheckInTitle}
+                  status={activeCheckInStatus}
+                  href={activeCheckInHref}
+                  onVoiceTap={() => setVoiceCheckinPeriod(activeDailyPeriod)}
+                  showVoiceButton={canUseVoiceCheckIn}
                 />
               </div>
 

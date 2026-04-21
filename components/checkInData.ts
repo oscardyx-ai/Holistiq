@@ -144,6 +144,7 @@ export type QuestionDefinition =
   | SubstanceUseQuestionDefinition
 
 export const STORAGE_KEY = 'holistiq-wellness-state-v2'
+export const DEFAULT_CHECK_IN_TIME_ZONE = 'America/New_York'
 
 const DEFAULT_REMINDERS: ReminderSettings = {
   nightReminderEnabled: true,
@@ -208,6 +209,73 @@ function formatDateKey(date: Date) {
   const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
+}
+
+function formatUtcDateKey(date: Date) {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+
+  const parts = formatter.formatToParts(date)
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0')
+
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+    hour: getPart('hour'),
+    minute: getPart('minute'),
+  }
+}
+
+export function getGreetingForHour(hour: number) {
+  if (hour < 12) {
+    return 'Good morning'
+  }
+
+  if (hour < 17) {
+    return 'Good afternoon'
+  }
+
+  return 'Good evening'
+}
+
+export function getResolvedCheckInTimeZone(timeZone?: string | null) {
+  return timeZone?.trim() ? timeZone : DEFAULT_CHECK_IN_TIME_ZONE
+}
+
+export function getDailyCheckInContext(
+  date = new Date(),
+  requestedTimeZone?: string | null
+) {
+  const timeZone = getResolvedCheckInTimeZone(requestedTimeZone)
+  const { year, month, day, hour } = getTimeZoneParts(date, timeZone)
+  const currentDateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const previousDate = new Date(Date.UTC(year, month - 1, day, 12))
+  previousDate.setUTCDate(previousDate.getUTCDate() - 1)
+  const activePeriod: 'morning' | 'night' = hour >= 6 && hour < 18 ? 'morning' : 'night'
+
+  return {
+    timeZone,
+    hour,
+    activePeriod,
+    activeDateKey: hour < 6 ? formatUtcDateKey(previousDate) : currentDateKey,
+  }
 }
 
 function parseDateKey(dateKey: string) {
@@ -929,17 +997,7 @@ export function getMonthLabel(dateKey: string) {
 }
 
 export function getGreetingForDate(date = new Date()) {
-  const hour = date.getHours()
-
-  if (hour < 12) {
-    return 'Good morning'
-  }
-
-  if (hour < 17) {
-    return 'Good afternoon'
-  }
-
-  return 'Good evening'
+  return getGreetingForHour(date.getHours())
 }
 
 export function getSessionId(date: string, period: CheckInPeriod) {
@@ -948,11 +1006,28 @@ export function getSessionId(date: string, period: CheckInPeriod) {
 
 export function getQuestionsForPeriod(
   period: CheckInPeriod,
-  answers: Record<string, AnswerValue> = {}
+  answers: Record<string, AnswerValue> = {},
+  options: {
+    includeMorningQuestions?: boolean
+  } = {}
 ) {
-  return QUESTION_BANK.filter((question) => question.period === period)
+  const periods =
+    period === 'night' && options.includeMorningQuestions
+      ? ['morning', 'night']
+      : [period]
+  const periodOrder: Record<CheckInPeriod, number> = {
+    morning: 0,
+    night: 1,
+    weekly: 2,
+  }
+
+  return QUESTION_BANK.filter((question) => periods.includes(question.period))
     .filter((question) => (question.visibleWhen ? question.visibleWhen(answers) : true))
     .sort((a, b) => {
+      if (a.period !== b.period) {
+        return periodOrder[a.period] - periodOrder[b.period]
+      }
+
       if (a.sortOrder !== b.sortOrder) {
         return a.sortOrder - b.sortOrder
       }
@@ -962,9 +1037,18 @@ export function getQuestionsForPeriod(
 }
 
 export function createEmptyAnswers(period: CheckInPeriod) {
+  return createCheckInAnswers(period)
+}
+
+export function createCheckInAnswers(
+  period: CheckInPeriod,
+  options: {
+    includeMorningQuestions?: boolean
+  } = {}
+) {
   const answers: Record<string, AnswerValue> = {}
 
-  for (const question of getQuestionsForPeriod(period)) {
+  for (const question of getQuestionsForPeriod(period, {}, options)) {
     if (question.kind === 'slider') {
       answers[question.id] = Math.round((question.min + question.max) / 2)
     }
@@ -987,6 +1071,17 @@ export function createEmptyAnswers(period: CheckInPeriod) {
   }
 
   return answers
+}
+
+export function getAnswersForPeriod(
+  answers: Record<string, AnswerValue>,
+  period: CheckInPeriod
+) {
+  const questionIds = QUESTION_BANK.filter((question) => question.period === period).map((question) => question.id)
+
+  return Object.fromEntries(
+    Object.entries(answers).filter(([questionId]) => questionIds.includes(questionId))
+  )
 }
 
 function seedFamilyMembers(date = new Date()) {

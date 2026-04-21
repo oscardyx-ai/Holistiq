@@ -12,13 +12,15 @@ import {
   QuestionDefinition,
   SubstanceUseAnswer,
   copyPreviousAnswers,
-  createEmptyAnswers,
+  createCheckInAnswers,
   formatLongDate,
+  getAnswersForPeriod,
   getPeriodLabel,
   getQuestionsForPeriod,
-  getTodayKey,
+  getSessionForDate,
   WellnessState,
 } from '@/components/checkInData'
+import { useCheckInWindow } from '@/lib/use-check-in-window'
 import { createEmptyWellnessState, fetchWellnessState, saveCheckIn } from '@/lib/wellness-api'
 
 function getChoiceColumns(count: number) {
@@ -258,21 +260,32 @@ export default function CheckInExperience() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestedPeriod = searchParams.get('period')
-  const period: CheckInPeriod =
-    requestedPeriod === 'night' || requestedPeriod === 'weekly' ? requestedPeriod : 'morning'
-  const todayKey = getTodayKey()
+  const checkInWindow = useCheckInWindow()
+  const period: CheckInPeriod = requestedPeriod === 'weekly' ? 'weekly' : checkInWindow.activePeriod
+  const entryDateKey = checkInWindow.activeDateKey
 
   const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
-  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(() => createEmptyAnswers(period))
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(() => createCheckInAnswers(period))
   const [stepIndex, setStepIndex] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingState, setIsLoadingState] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const questions = useMemo(() => getQuestionsForPeriod(period, answers), [period, answers])
+  const shouldIncludeMorningQuestions =
+    period === 'night' && !getSessionForDate(state.sessions, entryDateKey, 'morning')
+  const questions = useMemo(
+    () =>
+      getQuestionsForPeriod(period, answers, {
+        includeMorningQuestions: shouldIncludeMorningQuestions,
+      }),
+    [period, answers, shouldIncludeMorningQuestions]
+  )
   const currentStep = questions[Math.min(stepIndex, Math.max(questions.length - 1, 0))]
   const progress = questions.length ? ((stepIndex + 1) / questions.length) * 100 : 0
-  const previousAnswers = period === 'weekly' ? null : copyPreviousAnswers(state.sessions, todayKey, period)
+  const previousAnswers =
+    period === 'weekly' || shouldIncludeMorningQuestions
+      ? null
+      : copyPreviousAnswers(state.sessions, entryDateKey, period)
 
   useEffect(() => {
     let cancelled = false
@@ -288,7 +301,18 @@ export default function CheckInExperience() {
         }
 
         setState(nextState)
-        setAnswers(nextState.sessions[`${todayKey}:${period}`]?.answers ?? createEmptyAnswers(period))
+        const includeMorning =
+          period === 'night' && !getSessionForDate(nextState.sessions, entryDateKey, 'morning')
+        const nextAnswers = {
+          ...createCheckInAnswers(period, { includeMorningQuestions: includeMorning }),
+          ...(includeMorning
+            ? (getSessionForDate(nextState.sessions, entryDateKey, 'morning')?.answers ?? {})
+            : {}),
+          ...(getSessionForDate(nextState.sessions, entryDateKey, period)?.answers ?? {}),
+        }
+
+        setAnswers(nextAnswers)
+        setStepIndex(0)
       } catch (error) {
         if (!cancelled) {
           setLoadError(getFriendlyErrorMessage(error, 'Could not load your latest check-in data.'))
@@ -305,17 +329,38 @@ export default function CheckInExperience() {
     return () => {
       cancelled = true
     }
-  }, [period, todayKey])
+  }, [entryDateKey, period])
 
   async function finishCheckIn(nextAnswers: Record<string, AnswerValue>) {
     setIsSaving(true)
 
     try {
-      await saveCheckIn({
-        entryDate: todayKey,
-        period,
-        answers: nextAnswers,
-      })
+      const completedAt = new Date().toISOString()
+
+      if (period === 'night' && shouldIncludeMorningQuestions) {
+        await Promise.all([
+          saveCheckIn({
+            entryDate: entryDateKey,
+            period: 'morning',
+            answers: getAnswersForPeriod(nextAnswers, 'morning'),
+            completedAt,
+          }),
+          saveCheckIn({
+            entryDate: entryDateKey,
+            period: 'night',
+            answers: getAnswersForPeriod(nextAnswers, 'night'),
+            completedAt,
+          }),
+        ])
+      } else {
+        await saveCheckIn({
+          entryDate: entryDateKey,
+          period,
+          answers: getAnswersForPeriod(nextAnswers, period),
+          completedAt,
+        })
+      }
+
       router.push('/')
     } catch (error) {
       setLoadError(getFriendlyErrorMessage(error, 'Could not save your check-in just now.'))
@@ -342,7 +387,9 @@ export default function CheckInExperience() {
 
     if (autoAdvance) {
       window.setTimeout(() => {
-        const nextQuestions = getQuestionsForPeriod(period, nextAnswers)
+        const nextQuestions = getQuestionsForPeriod(period, nextAnswers, {
+          includeMorningQuestions: shouldIncludeMorningQuestions,
+        })
 
         if (stepIndex >= nextQuestions.length - 1) {
           void finishCheckIn(nextAnswers)
@@ -405,7 +452,7 @@ export default function CheckInExperience() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">
-                {formatLongDate(todayKey)}
+                {formatLongDate(entryDateKey)}
               </p>
               <h1 className="font-display mt-3 text-3xl text-stone-900 sm:text-4xl">
                 {getPeriodLabel(period)} check-in

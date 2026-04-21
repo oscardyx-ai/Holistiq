@@ -85,12 +85,12 @@ export default function FamilyTab({
                   <p className="text-lg font-semibold text-stone-900">{member.name}</p>
                   <p className="text-sm text-stone-500">{member.relation}</p>
                 </div>
-                <div className="rounded-full bg-[#eef5e5] px-3 py-2 text-xs font-semibold text-[#456246]">
+                <div className="shrink-0 rounded-full bg-[#eef5e5] px-3 py-2 text-xs font-semibold text-[#456246]">
                   {member.checkedInToday ? 'Checked in today' : 'Still open today'}
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[1.2rem] bg-white px-4 py-3">
                   <p className="text-sm text-stone-500">Current streak</p>
                   <p className="font-display mt-2 text-3xl text-stone-900">{member.streak}</p>
@@ -143,7 +143,7 @@ export default function FamilyTab({
         description="Personal health data stays private by default. Turn sharing on only if you want specific family members to see your graphs."
       >
         <div className="space-y-4">
-          <label className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4">
+          <label className="flex flex-col gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-stone-900">Allow graph sharing</p>
               <p className="text-sm text-stone-500">
@@ -201,7 +201,7 @@ export default function FamilyTab({
         description="Night reminders and family nudges can encourage consistency. In this prototype they use browser notifications when the app is open."
       >
         <div className="space-y-4">
-          <label className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4">
+          <label className="flex flex-col gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-stone-900">Night reminder</p>
               <p className="text-sm text-stone-500">
@@ -221,7 +221,7 @@ export default function FamilyTab({
             />
           </label>
 
-          <label className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4">
+          <label className="flex flex-col gap-4 rounded-[1.5rem] border border-[#ece3d4] bg-[#fcfaf5] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-stone-900">Family nudge</p>
               <p className="text-sm text-stone-500">

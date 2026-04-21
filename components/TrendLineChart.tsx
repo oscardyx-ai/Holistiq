@@ -11,6 +11,7 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import { use as registerEChartsModules } from 'echarts/core'
 import { FACTOR_CONFIG, FactorKey, TrendPoint } from '@/components/checkInData'
+import { useSmallScreen } from '@/lib/use-small-screen'
 
 registerEChartsModules([
   LineChart,
@@ -31,26 +32,31 @@ export default function TrendLineChart({
   points: TrendPoint[]
   activeSeries: Array<FactorKey | 'total'>
 }) {
+  const isSmallScreen = useSmallScreen()
+
   const option: EChartsOption = {
     animationDuration: 400,
     tooltip: {
       trigger: 'axis',
+      confine: true,
       backgroundColor: 'rgba(255,255,255,0.96)',
       borderColor: '#e7e5e4',
       textStyle: {
         color: '#1c1917',
+        fontSize: isSmallScreen ? 11 : 12,
       },
     },
     grid: {
-      top: 28,
-      left: 10,
-      right: 16,
-      bottom: 10,
+      top: 24,
+      left: isSmallScreen ? 6 : 10,
+      right: isSmallScreen ? 8 : 16,
+      bottom: isSmallScreen ? 34 : 10,
       containLabel: true,
     },
     xAxis: {
       type: 'category',
       data: points.map((point) => point.label),
+      boundaryGap: false,
       axisLine: {
         lineStyle: { color: '#d7d0c2' },
       },
@@ -59,7 +65,10 @@ export default function TrendLineChart({
       },
       axisLabel: {
         color: '#78716c',
-        margin: 12,
+        margin: isSmallScreen ? 10 : 12,
+        fontSize: isSmallScreen ? 10 : 12,
+        hideOverlap: true,
+        rotate: isSmallScreen ? 24 : 0,
       },
     },
     yAxis: {
@@ -74,7 +83,8 @@ export default function TrendLineChart({
       },
       axisLabel: {
         color: '#78716c',
-        margin: 10,
+        margin: isSmallScreen ? 8 : 10,
+        fontSize: isSmallScreen ? 10 : 12,
       },
     },
     series: [
@@ -114,16 +124,16 @@ export default function TrendLineChart({
   }
 
   return (
-    <div className="relative h-[360px] w-full">
-      <div className="pointer-events-none absolute bottom-[2px] left-1/2 -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+    <div className="relative h-[300px] w-full sm:h-[360px]">
+      <div className="pointer-events-none absolute bottom-[2px] left-1/2 hidden -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 sm:block">
         Date
       </div>
 
-      <div className="pointer-events-none absolute left-[2px] top-1/2 origin-center -translate-y-1/2 -rotate-90 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+      <div className="pointer-events-none absolute left-[2px] top-1/2 hidden origin-center -translate-y-1/2 -rotate-90 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 sm:block">
         Score
       </div>
 
-      <div className="absolute bottom-8 left-8 right-0 top-0">
+      <div className="absolute inset-0 sm:bottom-8 sm:left-8 sm:right-0 sm:top-0">
         <ReactECharts
           option={option}
           notMerge

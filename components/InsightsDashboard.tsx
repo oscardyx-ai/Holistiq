@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import DailySummaryRadarChart from '@/components/DailySummaryRadarChart'
+import SelectChevron from '@/components/SelectChevron'
 import TrendLineChart from '@/components/TrendLineChart'
 import {
   FACTOR_CONFIG,
@@ -13,6 +14,7 @@ import {
 import { fetchDailySummary, fetchTrendPoints } from '@/lib/wellness-api'
 
 type RangeKey = 'weekly' | 'monthly' | 'yearly'
+const RANGE_OPTIONS: RangeKey[] = ['weekly', 'monthly', 'yearly']
 
 function StatCard({
   label,
@@ -147,17 +149,19 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
           <div className="mt-8 flex flex-wrap items-end justify-between gap-6">
             <div>
               <div className="flex items-end gap-3 text-stone-900">
-                <span className="font-display text-7xl leading-none sm:text-8xl">
+                <span className="font-display text-5xl leading-none sm:text-8xl">
                   {latestSummary.total_score}
                 </span>
-                <span className="pb-2 text-lg font-semibold text-stone-500">/100</span>
+                <span className="pb-1 text-base font-semibold text-stone-500 sm:pb-2 sm:text-lg">
+                  /100
+                </span>
               </div>
               <p className="mt-3 text-sm font-medium text-stone-500">
                 Latest snapshot for {formatLongDate(latestDate)}
               </p>
             </div>
 
-            <div className="max-w-sm border-l border-[#ddd3c2] pl-5">
+            <div className="w-full max-w-sm border-t border-[#ddd3c2] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c7d49]">
                 Readout
               </p>
@@ -222,8 +226,29 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 rounded-full bg-[#f3eddf] p-1">
-            {(['weekly', 'monthly', 'yearly'] as RangeKey[]).map((item) => {
+          <div className="relative w-full sm:hidden">
+            <label htmlFor="insights-range-select" className="sr-only">
+              Choose an insight range
+            </label>
+            <select
+              id="insights-range-select"
+              value={range}
+              onChange={(event) => setRange(event.target.value as RangeKey)}
+              className="w-full appearance-none rounded-[1.2rem] border border-[#e2d8c8] bg-[#f3eddf] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
+            >
+              {RANGE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-500">
+              <SelectChevron />
+            </span>
+          </div>
+
+          <div className="hidden flex-wrap gap-2 rounded-full bg-[#f3eddf] p-1 sm:flex">
+            {RANGE_OPTIONS.map((item) => {
               const active = range === item
 
               return (
@@ -242,11 +267,11 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
           <button
             type="button"
             onClick={() => toggleSeries('total')}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${
               activeSeries.includes('total')
                 ? 'bg-[#1f3c25] text-white'
                 : 'border border-[#ddd3c2] bg-white text-stone-600'
@@ -260,7 +285,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
               key={factor.key}
               type="button"
               onClick={() => toggleSeries(factor.key)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${
                 activeSeries.includes(factor.key)
                   ? 'text-white'
                   : 'border border-[#ddd3c2] bg-white text-stone-600'
