@@ -41,6 +41,7 @@ interface SpeechRecognitionLike extends EventTarget {
   stop(): void
 }
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
+type BrowserAudioContext = typeof AudioContext
 
 const ENERGY_OPTIONS = ['terrible', 'bad', 'neutral', 'good', 'great'] as const
 const SLEEP_OPTIONS = ['terrible', 'bad', 'neutral', 'good', 'great'] as const
@@ -123,6 +124,43 @@ function PulseRing() {
   )
 }
 
+function encodeWav(chunks: Float32Array[], sampleRate: number) {
+  const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0)
+  const buffer = new ArrayBuffer(44 + sampleCount * 2)
+  const view = new DataView(buffer)
+
+  function writeString(offset: number, value: string) {
+    for (let index = 0; index < value.length; index++) {
+      view.setUint8(offset + index, value.charCodeAt(index))
+    }
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + sampleCount * 2, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, sampleCount * 2, true)
+
+  let offset = 44
+  for (const chunk of chunks) {
+    for (const sample of chunk) {
+      const clamped = Math.max(-1, Math.min(1, sample))
+      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true)
+      offset += 2
+    }
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
 interface Props {
   onSave: (data: VoiceCheckinData) => void
   onCancel?: () => void
@@ -139,8 +177,13 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
     medication: null, activity: null,
   })
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioGainRef = useRef<GainNode | null>(null)
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null)
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const pcmChunksRef = useRef<Float32Array[]>([])
+  const sampleRateRef = useRef(44100)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const transcriptRef = useRef('')
 
@@ -149,7 +192,7 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
     setLiveTranscript('')
     setFinalTranscript('')
     transcriptRef.current = ''
-    audioChunksRef.current = []
+    pcmChunksRef.current = []
 
     // Web Speech API for live display
     const SpeechRecognitionCtor: SpeechRecognitionConstructor | undefined =
@@ -182,13 +225,35 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg;codecs=opus'
-      const recorder = new MediaRecorder(stream, { mimeType })
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      recorder.start(250)
-      mediaRecorderRef.current = recorder
+      const AudioContextCtor =
+        window.AudioContext ??
+        (window as Window & { webkitAudioContext?: BrowserAudioContext }).webkitAudioContext
+
+      if (!AudioContextCtor) {
+        throw new Error('Audio recording is not supported in this browser.')
+      }
+
+      const audioContext = new AudioContextCtor()
+      const source = audioContext.createMediaStreamSource(stream)
+      const processor = audioContext.createScriptProcessor(4096, 1, 1)
+      const gain = audioContext.createGain()
+
+      gain.gain.value = 0
+      sampleRateRef.current = audioContext.sampleRate
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0)
+        pcmChunksRef.current.push(new Float32Array(input))
+      }
+
+      source.connect(processor)
+      processor.connect(gain)
+      gain.connect(audioContext.destination)
+
+      mediaStreamRef.current = stream
+      audioContextRef.current = audioContext
+      audioSourceRef.current = source
+      audioProcessorRef.current = processor
+      audioGainRef.current = gain
       setPhase('recording')
     } catch {
       setError('Microphone access denied. Please allow microphone and try again.')
@@ -198,26 +263,38 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
 
   const stopRecording = useCallback(() => {
     recognitionRef.current?.stop()
-    const recorder = mediaRecorderRef.current
-    if (!recorder) return
+    const stream = mediaStreamRef.current
+    if (!stream) return
 
-    recorder.onstop = async () => {
-      recorder.stream.getTracks().forEach((t) => t.stop())
-      setPhase('processing')
+    setPhase('processing')
+    audioSourceRef.current?.disconnect()
+    audioProcessorRef.current?.disconnect()
+    audioGainRef.current?.disconnect()
+    stream.getTracks().forEach((track) => track.stop())
+    void audioContextRef.current?.close()
 
-      const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+    mediaStreamRef.current = null
+    audioContextRef.current = null
+    audioSourceRef.current = null
+    audioProcessorRef.current = null
+    audioGainRef.current = null
 
+    const audioBlob = encodeWav(pcmChunksRef.current, sampleRateRef.current)
+
+    async function processRecording() {
       // Transcribe via Deepgram, fall back to Web Speech
       let transcript = transcriptRef.current
-      try {
-        const fd = new FormData()
-        fd.append('audio', audioBlob, 'recording.webm')
-        const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
-        if (res.ok) {
-          const data = (await res.json()) as { transcript: string }
-          if (data.transcript?.trim()) transcript = data.transcript
-        }
-      } catch { /* use Web Speech fallback */ }
+      if (audioBlob.size > 44) {
+        try {
+          const fd = new FormData()
+          fd.append('audio', audioBlob, 'recording.wav')
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          if (res.ok) {
+            const data = (await res.json()) as { transcript: string }
+            if (data.transcript?.trim()) transcript = data.transcript
+          }
+        } catch { /* use Web Speech fallback */ }
+      }
 
       setFinalTranscript(transcript)
 
@@ -244,13 +321,17 @@ export default function VoiceCheckin({ onSave, onCancel }: Props) {
       }
     }
 
-    recorder.stop()
+    void processRecording()
   }, [])
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop()
-      mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop())
+      audioSourceRef.current?.disconnect()
+      audioProcessorRef.current?.disconnect()
+      audioGainRef.current?.disconnect()
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
+      void audioContextRef.current?.close()
     }
   }, [])
 

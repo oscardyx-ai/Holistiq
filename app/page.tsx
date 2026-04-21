@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import VoiceCheckin, { VoiceCheckinData } from '@/components/VoiceCheckin'
+import VoiceCheckin from '@/components/VoiceCheckin'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
@@ -265,7 +265,7 @@ export default function Home() {
     }
   }
 
-  function handleVoiceSave(_data: VoiceCheckinData) {
+  function handleVoiceSave() {
     setVoiceCheckinPeriod(null)
   }
 

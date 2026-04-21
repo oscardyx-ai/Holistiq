@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bash -c 'trap \"kill 0\" EXIT; npm run dev:backend & npm run dev:web'",
     "dev:web": "next dev",
-    "dev:backend": "bash -c 'PYTHON=.venv/bin/python; if [ ! -x \"$PYTHON\" ]; then PYTHON=python3; fi; \"$PYTHON\" -m uvicorn backend.app.main:app --app-dir . --host 127.0.0.1 --port 8000'",
+    "dev:backend": "bash -c 'if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then echo \"FastAPI already running on http://127.0.0.1:8000\"; sleep infinity; fi; PYTHON=.venv/bin/python; if [ ! -x \"$PYTHON\" ]; then PYTHON=python3; fi; \"$PYTHON\" -m uvicorn backend.app.main:app --app-dir . --host 127.0.0.1 --port 8000'",
     "setup:backend": "python3 -m venv .venv && .venv/bin/pip install ./backend",
     "build": "next build",
     "start": "next start",
