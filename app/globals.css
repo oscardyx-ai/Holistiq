@@ -17,18 +17,11 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left, rgba(214, 230, 208, 0.72), transparent 28%),
-    radial-gradient(circle at top right, rgba(251, 238, 201, 0.72), transparent 24%),
-    radial-gradient(circle at bottom, rgba(237, 224, 191, 0.46), transparent 36%),
-    linear-gradient(180deg, #f9f4e9 0%, #f3ecdd 48%, #efe7d4 100%);
   min-height: 100%;
 }
 
 body {
   min-height: 100vh;
-  background: transparent;
-  color: var(--foreground);
   font-family: var(--font-holistiq-sans), sans-serif;
   letter-spacing: 0.01em;
 }

@@ -6,6 +6,7 @@ import TrendLineChart from '@/components/TrendLineChart'
 import {
   FACTOR_CONFIG,
   FactorKey,
+  formatLongDate,
   getLatestAvailableDate,
   WellnessState,
 } from '@/components/checkInData'
@@ -23,7 +24,7 @@ function StatCard({
   caption: string
 }) {
   return (
-    <article className="rounded-[1.5rem] border border-[#ece3d4] bg-white/88 p-5">
+    <article className="rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_20px_70px_rgba(190,198,189,0.14)]">
       <p className="text-sm text-stone-500">{label}</p>
       <p className="font-display mt-3 text-3xl text-stone-900">{value}</p>
       <p className="mt-2 text-sm leading-6 text-stone-500">{caption}</p>
@@ -100,7 +101,7 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
 
   if (!latestSummary) {
     return (
-      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 text-center shadow-[0_24px_80px_rgba(190,198,189,0.2)] backdrop-blur-xl">
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 text-center shadow-[0_24px_80px_rgba(190,198,189,0.2)]">
         <h2 className="font-display text-3xl text-stone-900">Loading insights</h2>
         <p className="mt-3 text-sm text-stone-500">Running backend scoring and trend aggregation for your latest data.</p>
       </section>
@@ -130,27 +131,83 @@ export default function InsightsDashboard({ state }: { state: WellnessState }) {
         </div>
       ) : null}
 
-      <DailySummaryRadarChart date={latestDate} factorScores={latestSummary.factor_scores} />
+      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <section className="rounded-[2.4rem] border border-stone-200 bg-white p-6 shadow-[0_28px_90px_rgba(190,198,189,0.2)] sm:p-7">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#5c7d49]">
+            Daily summary
+          </p>
+          <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900 sm:text-5xl">
+            Overall wellbeing
+          </h2>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
+            Your latest score blends daily check-in answers with any connected app signals into a
+            single 0-100 snapshot.
+          </p>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <StatCard
-          label="Overall wellbeing"
-          value={`${latestSummary.total_score}`}
-          caption="Average of all factor scores after question answers and connected app signals are blended together."
-        />
-        <StatCard
-          label="Strongest factor"
-          value={strongestFactor.label}
-          caption={`${latestSummary.factor_scores[strongestFactor.key]}/100 on the latest view.`}
-        />
-        <StatCard
-          label="Most fragile factor"
-          value={lowestFactor.label}
-          caption={`${latestSummary.factor_scores[lowestFactor.key]}/100 on the latest view.`}
+          <div className="mt-8 flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <div className="flex items-end gap-3 text-stone-900">
+                <span className="font-display text-7xl leading-none sm:text-8xl">
+                  {latestSummary.total_score}
+                </span>
+                <span className="pb-2 text-lg font-semibold text-stone-500">/100</span>
+              </div>
+              <p className="mt-3 text-sm font-medium text-stone-500">
+                Latest snapshot for {formatLongDate(latestDate)}
+              </p>
+            </div>
+
+            <div className="max-w-sm border-l border-[#ddd3c2] pl-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c7d49]">
+                Readout
+              </p>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                Higher scores mean your factors are trending steadier across mood, routine,
+                symptoms, and support.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-4 border-t border-[#ddd3c2] pt-6 sm:grid-cols-2">
+            <div className="pr-2">
+              <p className="text-sm text-stone-500">Strongest factor</p>
+              <p className="font-display mt-3 text-3xl text-stone-900">{strongestFactor.label}</p>
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                {latestSummary.factor_scores[strongestFactor.key]}/100 on the latest view.
+              </p>
+            </div>
+            <div className="pr-2 sm:border-l sm:border-[#ddd3c2] sm:pl-6">
+              <p className="text-sm text-stone-500">Most fragile factor</p>
+              <p className="font-display mt-3 text-3xl text-stone-900">{lowestFactor.label}</p>
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                {latestSummary.factor_scores[lowestFactor.key]}/100 on the latest view.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <DailySummaryRadarChart
+          date={latestDate}
+          factorScores={latestSummary.factor_scores}
+          className="h-full"
+          height={360}
         />
       </div>
 
-      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_24px_80px_rgba(190,198,189,0.2)] backdrop-blur-xl">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <StatCard
+          label="Scoring model"
+          value="Blended score"
+          caption="Each summary combines the latest question-based factor scores with connected app signals before producing the daily total."
+        />
+        <StatCard
+          label="Latest scoring window"
+          value={formatLongDate(latestDate)}
+          caption="This view uses the most recent day with enough check-in and connected app data to calculate the summary."
+        />
+      </div>
+
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_24px_80px_rgba(190,198,189,0.2)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6f8e58]">

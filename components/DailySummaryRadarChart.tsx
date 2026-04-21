@@ -128,7 +128,7 @@ export default function DailySummaryRadarChart({
     <section
       aria-label={`Wellbeing radar chart for ${formatLongDate(date)}`}
       className={[
-        'rounded-[2rem] border border-white/70 bg-white/88 p-4 shadow-[0_24px_80px_rgba(190,198,189,0.22)] backdrop-blur-xl sm:p-6',
+        'rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_24px_80px_rgba(190,198,189,0.22)] sm:p-6',
         className,
       ]
         .filter(Boolean)
