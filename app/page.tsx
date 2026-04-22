@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import VoiceCheckin from '@/components/VoiceCheckin'
 import FamilyTab from '@/components/FamilyTab'
@@ -35,6 +35,7 @@ import type { VoiceCheckinData } from '@/components/VoiceCheckin'
 
 type HomeTab = 'today' | 'insights' | 'learn' | 'family'
 const HOME_TABS: HomeTab[] = ['today', 'insights', 'learn', 'family']
+const HOME_TAB_ENTER_TRANSITION = { duration: 0.35, ease: 'easeOut' as const }
 
 function MicIcon() {
   return (
@@ -86,6 +87,25 @@ function QuestionnaireCard({
       </div>
 
     </article>
+  )
+}
+
+function HomeTabPanel({
+  children,
+  className = 'w-full',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={HOME_TAB_ENTER_TRANSITION}
+      className={className}
+    >
+      {children}
+    </motion.div>
   )
 }
 
@@ -323,8 +343,6 @@ export default function Home() {
     setVoiceCheckinPeriod(null)
   }
 
-  const todayShortStatus = `${todayStatus.completedSlots}/2 today`
-
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -397,13 +415,8 @@ export default function Home() {
         ) : null}
 
         {!isLoadingState && tab === 'today' ? (
-          <section className="w-full">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="rounded-[2.8rem] border border-stone-100 bg-white px-6 py-7 shadow-[0_28px_90px_rgba(76,149,108,0.20)] sm:px-8 sm:py-9"
-            >
+          <HomeTabPanel>
+            <div className="rounded-[2.8rem] border border-stone-100 bg-white px-6 py-7 shadow-[0_28px_90px_rgba(76,149,108,0.20)] sm:px-8 sm:py-9">
               <div className="p-5">
                 <p className="font-semibold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#888888' }}>Today&apos;s Check-In</p>
                 <h1 className="font-display mt-2 max-w-3xl text-[2.5rem] font-semibold leading-tight text-stone-900">
@@ -466,23 +479,33 @@ export default function Home() {
                   Enable browser reminders
                 </button>
               ) : null}
-            </motion.div>
-          </section>
+            </div>
+          </HomeTabPanel>
         ) : null}
 
-        {!isLoadingState && tab === 'insights' ? <InsightsDashboard state={state} /> : null}
+        {!isLoadingState && tab === 'insights' ? (
+          <HomeTabPanel>
+            <InsightsDashboard state={state} />
+          </HomeTabPanel>
+        ) : null}
 
-        {!isLoadingState && tab === 'learn' ? <LearnTab /> : null}
+        {!isLoadingState && tab === 'learn' ? (
+          <HomeTabPanel>
+            <LearnTab />
+          </HomeTabPanel>
+        ) : null}
 
         {!isLoadingState && tab === 'family' ? (
-          <FamilyTab
-            familyMembers={state.familyMembers}
-            privacy={state.privacy}
-            reminders={state.reminders}
-            onAddFamilyMember={handleAddFamilyMember}
-            onUpdatePrivacy={handleUpdatePrivacy}
-            onUpdateReminders={handleUpdateReminders}
-          />
+          <HomeTabPanel>
+            <FamilyTab
+              familyMembers={state.familyMembers}
+              privacy={state.privacy}
+              reminders={state.reminders}
+              onAddFamilyMember={handleAddFamilyMember}
+              onUpdatePrivacy={handleUpdatePrivacy}
+              onUpdateReminders={handleUpdateReminders}
+            />
+          </HomeTabPanel>
         ) : null}
       </div>
 

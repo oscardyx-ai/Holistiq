@@ -16,24 +16,6 @@ import { fetchDailySummary, fetchTrendPoints } from '@/lib/wellness-api'
 type RangeKey = 'weekly' | 'monthly' | 'yearly'
 const RANGE_OPTIONS: RangeKey[] = ['weekly', 'monthly', 'yearly']
 
-function StatCard({
-  label,
-  value,
-  caption,
-}: {
-  label: string
-  value: string
-  caption: string
-}) {
-  return (
-    <article className="rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_20px_70px_rgba(76,149,108,0.14)]">
-      <p className="text-sm text-stone-500">{label}</p>
-      <p className="font-display mt-3 text-3xl text-stone-900">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-stone-500">{caption}</p>
-    </article>
-  )
-}
-
 export default function InsightsDashboard({ state }: { state: WellnessState }) {
   const latestDate = getLatestAvailableDate(state.sessions, state.connectedApps)
   const [range, setRange] = useState<RangeKey>('weekly')
