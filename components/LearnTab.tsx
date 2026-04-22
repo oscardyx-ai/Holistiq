@@ -1,5 +1,8 @@
 import { getDailyLearnArticles } from '@/components/learnArticles'
 
+const twoLineClamp =
+  'overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
+
 function formatPublishedDate(dateKey: string) {
   return new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-US', {
     month: 'short',
@@ -54,22 +57,32 @@ export default function LearnTab() {
             </div>
 
             <h3 className="font-display mt-3 text-2xl leading-tight text-stone-900">
-              {article.title}
+              <span
+                className={`${twoLineClamp} min-h-[2.5em]`}
+                title={article.title}
+              >
+                {article.title}
+              </span>
             </h3>
 
             <div className="mt-4 flex flex-1 flex-col">
-              <p className="text-base leading-7 text-stone-600">{article.summary}</p>
+              <p className="min-h-[3.5rem] text-base leading-7 text-stone-600">
+                {article.summary}
+              </p>
 
               <dl className="mt-5 space-y-3 text-sm text-stone-500">
-                <div className="flex items-center justify-between gap-4 rounded-[1.2rem] bg-[#f5f5f5] px-4 py-3">
+                <div className="flex min-h-[3.5rem] items-center justify-between gap-4 rounded-[1.2rem] bg-[#f5f5f5] px-4 py-3">
                   <dt>Source</dt>
                   <dd className="font-medium text-stone-700">{article.source}</dd>
                 </div>
-                <div className="rounded-[1.2rem] bg-[#e0f5ec] px-4 py-3">
+                <div className="min-h-[6.5rem] rounded-[1.2rem] bg-[#e0f5ec] px-4 py-3">
                   <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4c956c]">
                     Peer-reviewed study
                   </dt>
-                  <dd className="mt-2 text-sm font-medium leading-6 text-stone-700">
+                  <dd
+                    className={`mt-2 min-h-[3rem] text-sm font-medium leading-6 text-stone-700 ${twoLineClamp}`}
+                    title={article.studyTitle}
+                  >
                     {article.studyTitle}
                   </dd>
                 </div>
