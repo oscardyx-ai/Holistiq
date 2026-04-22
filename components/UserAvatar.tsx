@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
+import { Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type UserInfo = {
@@ -172,6 +173,18 @@ export default function UserAvatar() {
           {signOutError ? (
             <p className="px-3 pb-2 text-sm text-red-600">{signOutError}</p>
           ) : null}
+
+          <Link
+            href="/settings"
+            onClick={() => {
+              setSignOutError(null)
+              setIsMenuOpen(false)
+            }}
+            className="flex w-full items-center justify-between rounded-[1rem] px-3 py-2 text-left text-sm font-semibold text-stone-700 transition hover:bg-[#f0f0f0]"
+          >
+            <span>Settings</span>
+            <Settings size={16} aria-hidden="true" />
+          </Link>
 
           <button
             type="button"

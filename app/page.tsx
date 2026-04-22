@@ -27,8 +27,6 @@ import {
   createFamilyMember,
   fetchWellnessState,
   saveCheckIn,
-  updateFamilyMemberSharing,
-  updatePrivacySettings,
   updateReminderSettings,
 } from '@/lib/wellness-api'
 import type { VoiceCheckinData } from '@/components/VoiceCheckin'
@@ -113,7 +111,6 @@ export default function Home() {
   const checkInWindow = useCheckInWindow()
   const [state, setState] = useState<WellnessState>(createEmptyWellnessState)
   const [tab, setTab] = useState<HomeTab>('today')
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [firstName, setFirstName] = useState<string | null>(null)
   const [isLoadingState, setIsLoadingState] = useState(true)
   const [stateError, setStateError] = useState<string | null>(null)
@@ -153,12 +150,6 @@ export default function Home() {
       setIsLoadingState(false)
     }
   }
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission)
-    }
-  }, [])
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data: { user } }) => {
@@ -249,64 +240,9 @@ export default function Home() {
     }
   }, [familyNudgeCandidate, isLoadingState, state, todayKey, todayStatus.nightComplete])
 
-  function requestNotifications() {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      return
-    }
-
-    Notification.requestPermission().then((permission) => {
-      setNotificationPermission(permission)
-    })
-  }
-
   async function handleAddFamilyMember(input: { name: string; relation: string }) {
     await createFamilyMember(input)
     await refreshState()
-  }
-
-  async function handleUpdatePrivacy(nextPrivacy: WellnessState['privacy']) {
-    const previousSharedIds = new Set(state.privacy.sharedFamilyMemberIds)
-    const nextSharedIds = new Set(nextPrivacy.sharedFamilyMemberIds)
-
-    setState((currentState) => ({
-      ...currentState,
-      privacy: nextPrivacy,
-    }))
-
-    try {
-      await updatePrivacySettings(nextPrivacy)
-
-      const changedMembers = state.familyMembers.filter((member) => {
-        const previouslyShared = previousSharedIds.has(member.id)
-        const nextShared = nextSharedIds.has(member.id)
-        return previouslyShared !== nextShared
-      })
-
-      await Promise.all(
-        changedMembers.map((member) =>
-          updateFamilyMemberSharing(member.id, nextSharedIds.has(member.id))
-        )
-      )
-
-      await refreshState()
-    } catch {
-      setStateError('Could not save your sharing preferences.')
-      await refreshState()
-    }
-  }
-
-  async function handleUpdateReminders(nextReminders: WellnessState['reminders']) {
-    setState((currentState) => ({
-      ...currentState,
-      reminders: nextReminders,
-    }))
-
-    try {
-      await updateReminderSettings(nextReminders)
-    } catch {
-      setStateError('Could not save your reminder settings.')
-      await refreshState()
-    }
   }
 
   async function handleVoiceSave(data: VoiceCheckinData) {
@@ -469,16 +405,6 @@ export default function Home() {
                   </div>
                 </article>
               </div>
-
-              {notificationPermission !== 'granted' ? (
-                <button
-                  type="button"
-                  onClick={requestNotifications}
-                  className="mt-5 inline-flex rounded-full bg-[linear-gradient(180deg,#f4f4f4_0%,#f0f0f0_100%)] px-5 py-3 text-sm font-semibold text-[#555555]"
-                >
-                  Enable browser reminders
-                </button>
-              ) : null}
             </div>
           </HomeTabPanel>
         ) : null}
@@ -499,11 +425,7 @@ export default function Home() {
           <HomeTabPanel>
             <FamilyTab
               familyMembers={state.familyMembers}
-              privacy={state.privacy}
-              reminders={state.reminders}
               onAddFamilyMember={handleAddFamilyMember}
-              onUpdatePrivacy={handleUpdatePrivacy}
-              onUpdateReminders={handleUpdateReminders}
             />
           </HomeTabPanel>
         ) : null}
