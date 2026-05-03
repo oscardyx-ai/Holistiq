@@ -240,7 +240,7 @@ export default function Home() {
     }
   }, [familyNudgeCandidate, isLoadingState, state, todayKey, todayStatus.nightComplete])
 
-  async function handleAddFamilyMember(input: { name: string; relation: string }) {
+  async function handleAddFamilyMember(input: { name: string; relation: string; inviteEmail?: string }) {
     await createFamilyMember(input)
     await refreshState()
   }

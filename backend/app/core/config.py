@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     supabase_jwks_url: str | None = None
     supabase_jwt_audience: str = "authenticated"
     allow_insecure_dev_auth: bool = False
+    resend_api_key: str | None = None
+    app_url: str = "https://app.holistiq.com"
 
     model_config = SettingsConfigDict(
         env_file=(BACKEND_ENV_FILE, LOCAL_ENV_FILE),

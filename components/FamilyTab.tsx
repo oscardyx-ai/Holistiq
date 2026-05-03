@@ -5,7 +5,7 @@ import { FamilyMember } from '@/components/checkInData'
 
 interface FamilyTabProps {
   familyMembers: FamilyMember[]
-  onAddFamilyMember: (input: { name: string; relation: string }) => Promise<void>
+  onAddFamilyMember: (input: { name: string; relation: string; inviteEmail?: string }) => Promise<void>
 }
 
 function Panel({
@@ -32,6 +32,7 @@ export default function FamilyTab({
 }: FamilyTabProps) {
   const [inviteName, setInviteName] = useState('')
   const [inviteRelation, setInviteRelation] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
 
   async function addMember() {
@@ -47,6 +48,7 @@ export default function FamilyTab({
       await onAddFamilyMember({
         name,
         relation: inviteRelation.trim() || 'Family member',
+        inviteEmail: inviteEmail.trim() || undefined,
       })
     } finally {
       setIsSubmittingInvite(false)
@@ -54,6 +56,7 @@ export default function FamilyTab({
 
     setInviteName('')
     setInviteRelation('')
+    setInviteEmail('')
   }
 
   return (
@@ -89,7 +92,7 @@ export default function FamilyTab({
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#4c956c]">
           Invite
         </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
           <input
             value={inviteName}
             onChange={(event) => setInviteName(event.target.value)}
@@ -100,6 +103,13 @@ export default function FamilyTab({
             value={inviteRelation}
             onChange={(event) => setInviteRelation(event.target.value)}
             placeholder="Relation"
+            className="rounded-[1rem] border border-[#e0e0e0] bg-white px-4 py-3 text-sm text-stone-700 outline-none"
+          />
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)}
+            placeholder="Email (optional)"
             className="rounded-[1rem] border border-[#e0e0e0] bg-white px-4 py-3 text-sm text-stone-700 outline-none"
           />
           <button

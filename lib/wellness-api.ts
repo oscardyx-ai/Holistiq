@@ -297,12 +297,13 @@ export async function updatePrivacySettings(privacy: PrivacySettings) {
   })
 }
 
-export async function createFamilyMember(input: { name: string; relation: string }) {
+export async function createFamilyMember(input: { name: string; relation: string; inviteEmail?: string }) {
   await apiRequest<ApiFamilyMember>('family-members', {
     method: 'POST',
     body: JSON.stringify({
       name: input.name,
       relation: input.relation,
+      invite_email: input.inviteEmail || null,
     }),
   })
 }

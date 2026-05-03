@@ -1,14 +1,19 @@
+import logging
 from datetime import date
 
+import resend
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.app.core.config import get_settings
 from backend.app.db import get_db
 from backend.app.deps import ensure_user_state, get_current_user
 from backend.app.models import CheckInPeriod, CheckInSession, FamilyMember, FamilyMemberStatus
 from backend.app.schemas import AuthenticatedUser, FamilyMemberCreate, FamilyMemberRead, FamilyMemberUpdate
 from backend.app.scoring import SessionInput, calculate_streak
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/family-members", tags=["family"])
 
@@ -66,6 +71,37 @@ def list_family_members(
     return [enrich_member(db, member) for member in members]
 
 
+def _send_invite_email(invite_email: str, inviter_name: str, member_name: str) -> None:
+    logger.info("_send_invite_email called: to=%s inviter=%r member=%r", invite_email, inviter_name, member_name)
+
+    settings = get_settings()
+    if not settings.resend_api_key:
+        logger.warning("RESEND_API_KEY not set — skipping invite email to %s", invite_email)
+        return
+
+    logger.info("RESEND_API_KEY present (length=%d), sending email", len(settings.resend_api_key))
+    resend.api_key = settings.resend_api_key
+    signup_url = f"{settings.app_url.rstrip('/')}/sign-up"
+
+    try:
+        response = resend.Emails.send({
+            "from": "Holistiq <onboarding@resend.dev>",
+            "to": [invite_email],
+            "subject": "You've been invited to join Holistiq",
+            "html": (
+                f"<p>Hi {member_name},</p>"
+                f"<p>{inviter_name} has invited you to join them on Holistiq — "
+                f"a simple wellness check-in app that lets family members support each other's health without sharing private details.</p>"
+                f'<p><a href="{signup_url}" style="display:inline-block;background:#4c956c;color:#fff;'
+                f'padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Create your account</a></p>'
+                f"<p>See you there,<br>The Holistiq team</p>"
+            ),
+        })
+        logger.info("Resend API response: %s", response)
+    except Exception:
+        logger.exception("Failed to send invite email to %s", invite_email)
+
+
 @router.post("", response_model=FamilyMemberRead, status_code=status.HTTP_201_CREATED)
 def create_family_member(
     payload: FamilyMemberCreate,
@@ -85,6 +121,14 @@ def create_family_member(
     db.add(member)
     db.commit()
     db.refresh(member)
+
+    if payload.invite_email:
+        _send_invite_email(
+            invite_email=str(payload.invite_email),
+            inviter_name=user.full_name or user.email or "Someone",
+            member_name=payload.name,
+        )
+
     return enrich_member(db, member)
 
 
