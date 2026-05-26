@@ -3,13 +3,13 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ENV_FILE = REPO_ROOT / "backend" / ".env"
 DEFAULT_DATABASE_FILE = REPO_ROOT / "backend" / "dev.db"
-DEFAULT_SUPABASE_URL = "https://wsachiytaiqzzwkpgzko.supabase.co"
+BROKEN_SUPABASE_URL = "https://wsachiytaiqzzwkpgzko.supabase.co"
 LOCAL_ENV_FILE = REPO_ROOT / ".env.local"
 
 
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = f"sqlite:///{DEFAULT_DATABASE_FILE}"
     supabase_url: str | None = Field(
-        default=DEFAULT_SUPABASE_URL,
+        default=None,
         validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
     )
     supabase_jwt_secret: str | None = None
@@ -34,6 +34,26 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_supabase_settings(self) -> "Settings":
+        if self.supabase_url == BROKEN_SUPABASE_URL:
+            raise ValueError(
+                "SUPABASE_URL still points at the retired Supabase project "
+                "wsachiytaiqzzwkpgzko. Replace it with your active project URL."
+            )
+
+        if (
+            not self.allow_insecure_dev_auth
+            and not self.supabase_jwt_secret
+            and not self.supabase_url
+        ):
+            raise ValueError(
+                "Set SUPABASE_URL or SUPABASE_JWT_SECRET before starting the backend, "
+                "or enable ALLOW_INSECURE_DEV_AUTH for local-only development."
+            )
+
+        return self
 
     @property
     def resolved_jwks_url(self) -> str | None:

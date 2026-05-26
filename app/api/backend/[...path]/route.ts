@@ -1,91 +1,183 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { ApiError } from '@/lib/server/api-error'
+import { requireAuthenticatedUser } from '@/lib/server/auth-user'
+import {
+  createFamilyMember,
+  getDailySummary,
+  getMe,
+  getPrivacySettings,
+  getReminderSettings,
+  getTrends,
+  getWellnessState,
+  listCheckIns,
+  listConnectedAppSnapshots,
+  listFamilyMembers,
+  updateFamilyMember,
+  updatePrivacySettings,
+  updateReminderSettings,
+  upsertCheckIn,
+  upsertConnectedAppSnapshot,
+} from '@/lib/server/wellness-store'
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL ?? 'http://127.0.0.1:8000'
-
-function buildBackendUrl(pathSegments: string[], request: NextRequest) {
-  const backendUrl = new URL(
-    `/api/v1/${pathSegments.map(encodeURIComponent).join('/')}`,
-    BACKEND_API_URL.endsWith('/') ? BACKEND_API_URL : `${BACKEND_API_URL}/`
-  )
-
-  request.nextUrl.searchParams.forEach((value, key) => {
-    backendUrl.searchParams.append(key, value)
-  })
-
-  return backendUrl
+async function readJsonBody(request: NextRequest) {
+  try {
+    return await request.json()
+  } catch {
+    throw new ApiError('Request body must be valid JSON.', 400)
+  }
 }
 
-async function proxyToBackend(
+function errorResponse(error: unknown) {
+  if (error instanceof ApiError) {
+    return NextResponse.json({ detail: error.message }, { status: error.statusCode })
+  }
+
+  console.error('[api/backend] Unhandled error:', error)
+  return NextResponse.json({ detail: 'Internal server error.' }, { status: 500 })
+}
+
+async function handleRequest(
   request: NextRequest,
-  context: { params: Promise<{ path: string[] }> }
+  context: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await context.params
-  const supabase = await createClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const user = await requireAuthenticatedUser()
+  const normalizedPath = path.join('/')
 
-  if (!session?.access_token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (request.method === 'GET' && normalizedPath === 'me') {
+    return NextResponse.json(await getMe(user))
   }
 
-  const headers = new Headers()
-  headers.set('Authorization', `Bearer ${session.access_token}`)
-
-  const contentType = request.headers.get('content-type')
-  if (contentType) {
-    headers.set('content-type', contentType)
+  if (request.method === 'GET' && normalizedPath === 'wellness/state') {
+    return NextResponse.json(await getWellnessState(user))
   }
 
-  let response: Response
+  if (normalizedPath === 'check-ins') {
+    if (request.method === 'GET') {
+      return NextResponse.json(
+        await listCheckIns(user, {
+          startDate: request.nextUrl.searchParams.get('start_date'),
+          endDate: request.nextUrl.searchParams.get('end_date'),
+          period: request.nextUrl.searchParams.get('period'),
+        }),
+      )
+    }
 
+    if (request.method === 'POST') {
+      return NextResponse.json(await upsertCheckIn(user, await readJsonBody(request)))
+    }
+  }
+
+  if (normalizedPath === 'settings/reminders') {
+    if (request.method === 'GET') {
+      return NextResponse.json(await getReminderSettings(user))
+    }
+
+    if (request.method === 'PUT') {
+      return NextResponse.json(await updateReminderSettings(user, await readJsonBody(request)))
+    }
+  }
+
+  if (normalizedPath === 'settings/privacy') {
+    if (request.method === 'GET') {
+      return NextResponse.json(await getPrivacySettings(user))
+    }
+
+    if (request.method === 'PUT') {
+      return NextResponse.json(await updatePrivacySettings(user, await readJsonBody(request)))
+    }
+  }
+
+  if (normalizedPath === 'family-members') {
+    if (request.method === 'GET') {
+      return NextResponse.json(await listFamilyMembers(user))
+    }
+
+    if (request.method === 'POST') {
+      const origin = new URL(request.url).origin
+      return NextResponse.json(
+        await createFamilyMember(user, await readJsonBody(request), origin),
+        { status: 201 },
+      )
+    }
+  }
+
+  if (request.method === 'PATCH' && path[0] === 'family-members' && path.length === 2) {
+    return NextResponse.json(await updateFamilyMember(user, path[1], await readJsonBody(request)))
+  }
+
+  if (normalizedPath === 'connected-apps') {
+    if (request.method === 'GET') {
+      return NextResponse.json(await listConnectedAppSnapshots(user))
+    }
+
+    if (request.method === 'POST') {
+      return NextResponse.json(await upsertConnectedAppSnapshot(user, await readJsonBody(request)))
+    }
+  }
+
+  if (request.method === 'GET' && normalizedPath === 'insights/summary') {
+    return NextResponse.json(await getDailySummary(user, request.nextUrl.searchParams.get('target_date')))
+  }
+
+  if (request.method === 'GET' && normalizedPath === 'insights/trends') {
+    return NextResponse.json(await getTrends(user, request.nextUrl.searchParams.get('range')))
+  }
+
+  return NextResponse.json({ detail: 'Route not found.' }, { status: 404 })
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
   try {
-    response = await fetch(buildBackendUrl(path, request), {
-      method: request.method,
-      headers,
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text(),
-      cache: 'no-store',
-    })
+    return await handleRequest(request, context)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown backend connectivity error.'
-    return NextResponse.json(
-      {
-        error: 'Backend request failed.',
-        detail: message,
-      },
-      { status: 502 }
-    )
+    return errorResponse(error)
   }
+}
 
-  const responseHeaders = new Headers()
-  const responseContentType = response.headers.get('content-type')
-  if (responseContentType) {
-    responseHeaders.set('content-type', responseContentType)
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  try {
+    return await handleRequest(request, context)
+  } catch (error) {
+    return errorResponse(error)
   }
-
-  return new NextResponse(response.body, {
-    status: response.status,
-    headers: responseHeaders,
-  })
 }
 
-export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyToBackend(request, context)
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  try {
+    return await handleRequest(request, context)
+  } catch (error) {
+    return errorResponse(error)
+  }
 }
 
-export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyToBackend(request, context)
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  try {
+    return await handleRequest(request, context)
+  } catch (error) {
+    return errorResponse(error)
+  }
 }
 
-export async function PUT(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyToBackend(request, context)
-}
-
-export async function PATCH(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyToBackend(request, context)
-}
-
-export async function DELETE(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyToBackend(request, context)
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  try {
+    return await handleRequest(request, context)
+  } catch (error) {
+    return errorResponse(error)
+  }
 }

@@ -1,70 +1,56 @@
 # Holistiq
 
-Holistiq is a wellness check-in product with a Next.js frontend and a FastAPI
-backend. The frontend handles the authenticated app shell and interaction
-design, while the backend is designed to own data persistence, analytics,
-family-sharing state, and future integrations.
+Holistiq is a wellness check-in product built to run as a single Next.js app
+on Vercel. Supabase handles authentication and Postgres persistence, while the
+Next route handlers own the app's server-side data and analytics logic.
 
 ## Local Development
 
-Install frontend and backend dependencies:
+Install dependencies:
 
 ```bash
 npm install
-npm run setup:backend
 ```
 
-Run the full app:
+Create your local env file:
+
+```bash
+cp .env.example .env.local
+```
+
+Set real values for:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Apply the Supabase schema in
+[supabase/migrations/20260525_create_holistiq_schema.sql](/Users/d16zheng/Projects/Holistiq/supabase/migrations/20260525_create_holistiq_schema.sql:1)
+through the Supabase SQL editor before using the app data routes.
+
+Run the app:
 
 ```bash
 npm run dev
 ```
 
-The app will be available at [http://localhost:3000](http://localhost:3000), and the FastAPI backend will run at `http://127.0.0.1:8000`.
+The app will be available at [http://localhost:3000](http://localhost:3000).
 
-If the frontend shows `fetch failed`, confirm the backend health endpoint works:
+## Current Architecture
 
-```bash
-curl http://127.0.0.1:8000/health
-```
+- Supabase Auth powers Google sign-in.
+- `app/api/backend/[...path]/route.ts` now handles the app data API inside Next.
+- Supabase Postgres stores check-ins, settings, family members, and connected app snapshots.
+- Daily summaries and trend analytics are computed in TypeScript on the server.
 
-It should return:
+## Optional Services
 
-```json
-{"status":"ok"}
-```
+- `RESEND_API_KEY` enables family invite emails.
+- `DEEPGRAM_API_KEY` powers transcription.
+- `GROQ_API_KEY` powers voice check-in extraction.
 
-If port `8000` is already in use, stop the old backend process before running `npm run dev` again.
+## Legacy Backend
 
-## Frontend Only
-
-Run only the Next.js app:
-
-```bash
-npm run dev:web
-```
-
-## Backend
-
-The FastAPI backend lives in [backend/README.md](backend/README.md).
-
-Quick start:
-
-```bash
-npm run setup:backend
-cp backend/.env.example backend/.env
-npm run dev:backend
-```
-
-The API will be available at `http://127.0.0.1:8000`, with interactive docs at
-`/docs`.
-
-## Backend Capabilities
-
-- Supabase bearer-token verification
-- Per-user check-in persistence
-- Reminder and privacy settings
-- Family-member records and graph-sharing permissions
-- Connected-app snapshot ingestion
-- Daily summary and trend analytics in Python
-- A frontend hydration endpoint at `/api/v1/wellness/state`
+The old FastAPI backend remains in [backend/README.md](backend/README.md) as
+reference code, but it is no longer required for local development or Vercel
+deployment.

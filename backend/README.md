@@ -4,6 +4,9 @@ This service is the backend companion to the Next.js frontend. It is designed
 to work with Supabase Auth and a Postgres database, while keeping the
 wellbeing-scoring and analytics logic in Python.
 
+The main app no longer depends on this service for local development or Vercel
+deployment. It remains here as legacy/reference code.
+
 ## What It Handles
 
 - Supabase bearer-token verification
@@ -29,6 +32,8 @@ npm run setup:backend
 ```bash
 cp backend/.env.example backend/.env
 ```
+
+Set `SUPABASE_URL` to your active Supabase project before starting the API.
 
 4. Start the API:
 
