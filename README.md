@@ -48,9 +48,3 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 - `RESEND_API_KEY` enables family invite emails.
 - `DEEPGRAM_API_KEY` powers transcription.
 - `GROQ_API_KEY` powers voice check-in extraction.
-
-## Legacy Backend
-
-The old FastAPI backend remains in [backend/README.md](backend/README.md) as
-reference code, but it is no longer required for local development or Vercel
-deployment.

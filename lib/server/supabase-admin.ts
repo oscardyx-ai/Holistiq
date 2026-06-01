@@ -1,10 +1,10 @@
 import 'server-only'
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getPublicEnv } from '@/lib/env/public'
 import { ApiError } from '@/lib/server/api-error'
 
-let adminClient: any = null
+let adminClient: SupabaseClient | null = null
 
 export function getSupabaseAdminClient() {
   if (adminClient) {

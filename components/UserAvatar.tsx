@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Settings } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 type UserInfo = {
   name: string
@@ -46,37 +45,27 @@ export default function UserAvatar() {
   const [signOutError, setSignOutError] = useState<string | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
+      const response = await fetch('/api/auth/me', { cache: 'no-store' })
+
+      if (!response.ok) {
         setUser(null)
         return
       }
-      const meta = session.user.user_metadata
+
+      const {
+        user: nextUser,
+      }: {
+        user: UserInfo
+      } = await response.json()
+
       setUser({
-        name: meta?.full_name ?? meta?.name ?? session.user.email ?? 'You',
-        avatarUrl: meta?.avatar_url ?? meta?.picture ?? null,
+        name: nextUser.name,
+        avatarUrl: nextUser.avatarUrl,
       })
     }
 
-    load()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
-        setUser(null)
-        setIsMenuOpen(false)
-        return
-      }
-      const meta = session.user.user_metadata
-      setUser({
-        name: meta?.full_name ?? meta?.name ?? session.user.email ?? 'You',
-        avatarUrl: meta?.avatar_url ?? meta?.picture ?? null,
-      })
-    })
-
-    return () => subscription.unsubscribe()
+    void load()
   }, [])
 
   useEffect(() => {
@@ -110,20 +99,22 @@ export default function UserAvatar() {
   }, [isMenuOpen])
 
   async function handleSignOut() {
-    const supabase = createClient()
-
     setSignOutError(null)
     setIsSigningOut(true)
 
-    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    const response = await fetch('/api/auth/signout', {
+      method: 'POST',
+      credentials: 'same-origin',
+    })
 
     setIsSigningOut(false)
 
-    if (error) {
+    if (!response.ok) {
       setSignOutError('Could not sign out. Please try again.')
       return
     }
 
+    setUser(null)
     setIsMenuOpen(false)
     router.replace('/login')
     router.refresh()

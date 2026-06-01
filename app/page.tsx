@@ -3,7 +3,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import VoiceCheckin from '@/components/VoiceCheckin'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
@@ -152,10 +151,24 @@ export default function Home() {
   }
 
   useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      const full = user?.user_metadata?.full_name ?? user?.user_metadata?.name
-      setFirstName(full ? full.split(' ')[0] : null)
-    })
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) {
+          setFirstName(null)
+          return
+        }
+
+        const {
+          user,
+        }: {
+          user: { firstName: string | null }
+        } = await response.json()
+
+        setFirstName(user.firstName)
+      })
+      .catch(() => {
+        setFirstName(null)
+      })
 
     void refreshState()
   }, [])

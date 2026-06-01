@@ -1,1 +1,0 @@
-"""Holistiq FastAPI backend package."""
