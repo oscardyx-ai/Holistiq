@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
-import VoiceCheckin from '@/components/VoiceCheckin'
+import ConversationalCheckin from '@/components/ConversationalCheckin'
 import FamilyTab from '@/components/FamilyTab'
 import InsightsDashboard from '@/components/InsightsDashboard'
 import LearnTab from '@/components/LearnTab'
@@ -478,9 +478,10 @@ export default function Home() {
                   </svg>
                 </button>
               </div>
-              <VoiceCheckin
+              <ConversationalCheckin
                 onSave={handleVoiceSave}
                 onCancel={() => setVoiceCheckinPeriod(null)}
+                period={voiceCheckinPeriod}
               />
             </motion.div>
           </motion.div>
