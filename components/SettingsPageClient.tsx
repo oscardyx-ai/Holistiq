@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
 import LogoWordmark from '@/components/LogoWordmark'
 import UserAvatar from '@/components/UserAvatar'
+import TierSelector from '@/components/TierSelector'
 import { type WellnessState } from '@/components/checkInData'
 import {
   createEmptyWellnessState,
@@ -12,6 +13,8 @@ import {
   updatePrivacySettings,
   updateReminderSettings,
 } from '@/lib/wellness-api'
+import { getTier, setTier } from '@/lib/questionnaire/loader'
+import type { CheckInTier } from '@/lib/questionnaire/types'
 
 function Panel({
   title,
@@ -64,6 +67,7 @@ export default function SettingsPageClient() {
   const [supportsNotifications, setSupportsNotifications] = useState(true)
   const [isLoadingState, setIsLoadingState] = useState(true)
   const [stateError, setStateError] = useState<string | null>(null)
+  const [tier, setTierState] = useState<CheckInTier>('beginner')
 
   async function refreshState() {
     setIsLoadingState(true)
@@ -78,6 +82,10 @@ export default function SettingsPageClient() {
       setIsLoadingState(false)
     }
   }
+
+  useEffect(() => {
+    setTierState(getTier())
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -199,6 +207,20 @@ export default function SettingsPageClient() {
 
         {!isLoadingState ? (
           <div className="space-y-6">
+            <Panel
+              title="Check-in detail level"
+              description="Choose how detailed your daily check-ins are. You can change this at any time — it takes effect on your next check-in."
+            >
+              <TierSelector
+                value={tier}
+                onChange={(next) => {
+                  setTierState(next)
+                  setTier(next)
+                }}
+                layout="cards"
+              />
+            </Panel>
+
             <Panel
               title="Browser reminders"
               description="Control whether this browser can show notification prompts for Holistiq. Browser reminders only arrive while the app is open."

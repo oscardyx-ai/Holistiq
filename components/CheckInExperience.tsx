@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import LogoWordmark from '@/components/LogoWordmark'
+import SafetyScreen from '@/components/SafetyScreen'
 import {
   AnswerValue,
   CheckInPeriod,
@@ -22,6 +23,9 @@ import {
 } from '@/components/checkInData'
 import { useCheckInWindow } from '@/lib/use-check-in-window'
 import { createEmptyWellnessState, fetchWellnessState, saveCheckIn } from '@/lib/wellness-api'
+import { getTier, getQuestionsForSession, getFollowUpQuestion } from '@/lib/questionnaire/loader'
+import type { Question as NewQuestion, CheckInTier, PatientFlag } from '@/lib/questionnaire/types'
+import { evaluateTriggers, requiresSafetyPause } from '@/lib/questionnaire/engine'
 
 function getChoiceColumns(count: number) {
   if (count <= 2) {
@@ -256,6 +260,52 @@ function SubstanceStep({
   )
 }
 
+// ── New questionnaire rendering ───────────────────────────────────────────────
+
+function NewChoiceGrid({
+  question,
+  value,
+  onSelect,
+}: {
+  question: NewQuestion
+  value: string[]
+  onSelect: (ids: string[]) => void
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {question.options.map((opt) => {
+        const selected = value.includes(opt.id)
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => {
+              if (question.responseType === 'single_choice') {
+                onSelect([opt.id])
+              } else {
+                onSelect(
+                  selected ? value.filter(id => id !== opt.id) : [...value, opt.id]
+                )
+              }
+            }}
+            className={`rounded-[1.5rem] border px-4 py-5 text-left transition ${
+              selected
+                ? question.responseType === 'single_choice'
+                  ? 'border-[#4c956c] bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] text-white shadow-[0_12px_24px_rgba(76,149,108,0.22)]'
+                  : 'border-[#4c956c] bg-[#e0f5ec] text-[#2c6e49]'
+                : 'border-[#e5e5e5] bg-white text-stone-700 hover:-translate-y-0.5 hover:border-[#d0d0d0]'
+            }`}
+          >
+            <span className="text-base font-semibold">{opt.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function CheckInExperience() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -271,6 +321,15 @@ export default function CheckInExperience() {
   const [isLoadingState, setIsLoadingState] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // New questionnaire system state
+  const [tier, setTierState] = useState<CheckInTier>('beginner')
+  const [newSystemActive, setNewSystemActive] = useState(false)
+  const [newQuestions, setNewQuestions] = useState<NewQuestion[]>([])
+  const [newAnswers, setNewAnswers] = useState<Record<string, string[]>>({})
+  const [pendingFollowUpIds, setPendingFollowUpIds] = useState<string[]>([])
+  const [safetyFlags, setSafetyFlags] = useState<PatientFlag[]>([])
+  const [showSafetyScreen, setShowSafetyScreen] = useState(false)
+
   const shouldIncludeMorningQuestions =
     period === 'night' && !getSessionForDate(state.sessions, entryDateKey, 'morning')
   const questions = useMemo(
@@ -280,12 +339,39 @@ export default function CheckInExperience() {
       }),
     [period, answers, shouldIncludeMorningQuestions]
   )
-  const currentStep = questions[Math.min(stepIndex, Math.max(questions.length - 1, 0))]
-  const progress = questions.length ? ((stepIndex + 1) / questions.length) * 100 : 0
+
+  // New system: flat rendered question list (base + injected follow-ups)
+  const renderedNewQuestions = useMemo<NewQuestion[]>(() => {
+    if (!newSystemActive) return []
+    const result: NewQuestion[] = [...newQuestions]
+    const toInsert: Array<{ afterId: string; q: NewQuestion }> = []
+    for (const id of pendingFollowUpIds) {
+      const fq = getFollowUpQuestion(id)
+      if (fq) toInsert.push({ afterId: '', q: fq })
+    }
+    // Append follow-ups at end for now (triggered ones are added dynamically)
+    return [...result, ...toInsert.map(t => t.q)]
+  }, [newSystemActive, newQuestions, pendingFollowUpIds])
+
+  const activeQuestions = newSystemActive ? renderedNewQuestions : questions
+  const currentNewStep = newSystemActive ? renderedNewQuestions[Math.min(stepIndex, Math.max(renderedNewQuestions.length - 1, 0))] : null
+  const currentStep = newSystemActive ? null : questions[Math.min(stepIndex, Math.max(questions.length - 1, 0))]
+  const progress = activeQuestions.length ? ((stepIndex + 1) / activeQuestions.length) * 100 : 0
   const previousAnswers =
     period === 'weekly' || shouldIncludeMorningQuestions
       ? null
       : copyPreviousAnswers(state.sessions, entryDateKey, period)
+
+  useEffect(() => {
+    const t = getTier()
+    setTierState(t)
+    const timing = period === 'morning' ? 'morning' : period === 'weekly' ? 'weekly' : 'night'
+    const qs = getQuestionsForSession(t, timing)
+    if (qs.length > 0) {
+      setNewSystemActive(true)
+      setNewQuestions(qs)
+    }
+  }, [period])
 
   useEffect(() => {
     let cancelled = false
@@ -337,18 +423,24 @@ export default function CheckInExperience() {
     try {
       const completedAt = new Date().toISOString()
 
+      // Merge new-system answers (string[]) into the answers record as AnswerValue
+      const mergedAnswers: Record<string, AnswerValue> = { ...nextAnswers }
+      for (const [id, selectedIds] of Object.entries(newAnswers)) {
+        mergedAnswers[id] = selectedIds.length === 1 ? selectedIds[0] : selectedIds
+      }
+
       if (period === 'night' && shouldIncludeMorningQuestions) {
         await Promise.all([
           saveCheckIn({
             entryDate: entryDateKey,
             period: 'morning',
-            answers: getAnswersForPeriod(nextAnswers, 'morning'),
+            answers: getAnswersForPeriod(mergedAnswers, 'morning'),
             completedAt,
           }),
           saveCheckIn({
             entryDate: entryDateKey,
             period: 'night',
-            answers: getAnswersForPeriod(nextAnswers, 'night'),
+            answers: getAnswersForPeriod(mergedAnswers, 'night'),
             completedAt,
           }),
         ])
@@ -356,7 +448,7 @@ export default function CheckInExperience() {
         await saveCheckIn({
           entryDate: entryDateKey,
           period,
-          answers: getAnswersForPeriod(nextAnswers, period),
+          answers: getAnswersForPeriod(mergedAnswers, period),
           completedAt,
         })
       }
@@ -369,12 +461,59 @@ export default function CheckInExperience() {
   }
 
   function goNext() {
+    if (newSystemActive) {
+      if (stepIndex >= renderedNewQuestions.length - 1) {
+        void finishCheckIn(answers)
+        return
+      }
+      setStepIndex((current) => Math.min(current + 1, renderedNewQuestions.length - 1))
+      return
+    }
     if (stepIndex >= questions.length - 1) {
       void finishCheckIn(answers)
       return
     }
-
     setStepIndex((current) => Math.min(current + 1, questions.length - 1))
+  }
+
+  function applyNewAnswer(questionId: string, selectedIds: string[], autoAdvance = false) {
+    const nextNewAnswers = { ...newAnswers, [questionId]: selectedIds }
+    setNewAnswers(nextNewAnswers)
+
+    // Run trigger evaluation and collect follow-ups + safety flags
+    const sessionId = `${entryDateKey}_${period}`
+    const results = evaluateTriggers(nextNewAnswers, sessionId)
+    const newFlags = results.map(r => r.flag)
+    const allFollowUps = results.flatMap(r => r.followUpQuestionIds)
+
+    if (newFlags.length > 0) {
+      setSafetyFlags(prev => {
+        const existingIds = new Set(prev.map(f => f.id))
+        return [...prev, ...newFlags.filter(f => !existingIds.has(f.id))]
+      })
+    }
+
+    if (allFollowUps.length > 0) {
+      setPendingFollowUpIds(prev => {
+        const existing = new Set(prev)
+        return [...prev, ...allFollowUps.filter(id => !existing.has(id))]
+      })
+    }
+
+    if (requiresSafetyPause(newFlags)) {
+      setShowSafetyScreen(true)
+      return
+    }
+
+    if (autoAdvance) {
+      window.setTimeout(() => {
+        if (stepIndex >= renderedNewQuestions.length - 1) {
+          void finishCheckIn(answers)
+          return
+        }
+        setStepIndex((current) => Math.min(current + 1, renderedNewQuestions.length - 1))
+      }, 160)
+    }
   }
 
   function applyAnswer(questionId: string, value: AnswerValue, autoAdvance = false) {
@@ -409,6 +548,23 @@ export default function CheckInExperience() {
     void finishCheckIn(previousAnswers)
   }
 
+  if (showSafetyScreen) {
+    return (
+      <SafetyScreen
+        flags={safetyFlags}
+        onContinue={() => {
+          setShowSafetyScreen(false)
+          if (stepIndex < renderedNewQuestions.length - 1) {
+            setStepIndex(s => s + 1)
+          } else {
+            void finishCheckIn(answers)
+          }
+        }}
+        onExit={() => router.push('/')}
+      />
+    )
+  }
+
   if (isLoadingState) {
     return (
       <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
@@ -425,7 +581,11 @@ export default function CheckInExperience() {
     )
   }
 
-  if (!currentStep) {
+  if (newSystemActive && !currentNewStep) {
+    return null
+  }
+
+  if (!newSystemActive && !currentStep) {
     return null
   }
 
@@ -482,78 +642,115 @@ export default function CheckInExperience() {
 
           <div className="mt-3 flex items-center justify-between text-sm text-stone-500">
             <span>
-              Question {stepIndex + 1} of {questions.length}
+              Question {stepIndex + 1} of {activeQuestions.length}
             </span>
             <span>{isSaving ? 'Saving...' : 'Relaxed pace'}</span>
           </div>
 
           <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep.id}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="mt-8 space-y-7"
-            >
-              <div>
-                <p className="text-sm font-medium text-[#4c956c]">
-                  {currentStep.factors
-                    .map(
-                      (factor) =>
-                        FACTOR_CONFIG.find((item) => item.key === factor)?.label ?? factor
-                    )
-                    .join(' / ')}
-                </p>
-                <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900">
-                  {currentStep.prompt}
-                </h2>
-                {currentStep.helper ? (
-                  <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                    {currentStep.helper}
+            {newSystemActive && currentNewStep ? (
+              <motion.div
+                key={currentNewStep.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="mt-8 space-y-7"
+              >
+                <div>
+                  <p className="text-sm font-medium capitalize text-[#4c956c]">
+                    {currentNewStep.domain.replace(/_/g, ' ')}
                   </p>
-                ) : null}
-              </div>
+                  <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900">
+                    {currentNewStep.text}
+                  </h2>
+                  {currentNewStep.examples && currentNewStep.examples.length > 0 ? (
+                    <p className="mt-3 max-w-2xl text-base leading-7 text-stone-500">
+                      e.g. {currentNewStep.examples.join(', ')}
+                    </p>
+                  ) : null}
+                </div>
 
-              {currentStep.kind === 'single_choice' ? (
-                <ChoiceGrid
-                  options={currentStep.options}
-                  value={String(answers[currentStep.id] ?? currentStep.options[0])}
-                  onSelect={(value) => applyAnswer(currentStep.id, value, true)}
-                  columns={getChoiceColumns(currentStep.options.length)}
-                />
-              ) : null}
-
-              {currentStep.kind === 'slider' ? (
-                <SliderStep
-                  question={currentStep}
-                  value={Number(answers[currentStep.id] ?? currentStep.min)}
-                  onChange={(value) => applyAnswer(currentStep.id, value)}
-                />
-              ) : null}
-
-              {currentStep.kind === 'multi_select' ? (
-                <MultiSelectStep
-                  options={currentStep.options}
-                  value={(answers[currentStep.id] as string[]) ?? []}
-                  onChange={(value) => applyAnswer(currentStep.id, value)}
-                />
-              ) : null}
-
-              {currentStep.kind === 'substance_use' ? (
-                <SubstanceStep
-                  question={currentStep}
-                  value={
-                    (answers[currentStep.id] as SubstanceUseAnswer) ?? {
-                      substances: [],
-                      customSubstance: '',
-                      frequency: 'None',
-                    }
+                <NewChoiceGrid
+                  question={currentNewStep}
+                  value={newAnswers[currentNewStep.id] ?? []}
+                  onSelect={(ids) =>
+                    applyNewAnswer(
+                      currentNewStep.id,
+                      ids,
+                      currentNewStep.responseType === 'single_choice',
+                    )
                   }
-                  onChange={(value) => applyAnswer(currentStep.id, value)}
                 />
-              ) : null}
-            </motion.div>
+              </motion.div>
+            ) : currentStep ? (
+              <motion.div
+                key={currentStep.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="mt-8 space-y-7"
+              >
+                <div>
+                  <p className="text-sm font-medium text-[#4c956c]">
+                    {currentStep.factors
+                      .map(
+                        (factor) =>
+                          FACTOR_CONFIG.find((item) => item.key === factor)?.label ?? factor
+                      )
+                      .join(' / ')}
+                  </p>
+                  <h2 className="font-display mt-3 text-4xl leading-tight text-stone-900">
+                    {currentStep.prompt}
+                  </h2>
+                  {currentStep.helper ? (
+                    <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
+                      {currentStep.helper}
+                    </p>
+                  ) : null}
+                </div>
+
+                {currentStep.kind === 'single_choice' ? (
+                  <ChoiceGrid
+                    options={currentStep.options}
+                    value={String(answers[currentStep.id] ?? currentStep.options[0])}
+                    onSelect={(value) => applyAnswer(currentStep.id, value, true)}
+                    columns={getChoiceColumns(currentStep.options.length)}
+                  />
+                ) : null}
+
+                {currentStep.kind === 'slider' ? (
+                  <SliderStep
+                    question={currentStep}
+                    value={Number(answers[currentStep.id] ?? currentStep.min)}
+                    onChange={(value) => applyAnswer(currentStep.id, value)}
+                  />
+                ) : null}
+
+                {currentStep.kind === 'multi_select' ? (
+                  <MultiSelectStep
+                    options={currentStep.options}
+                    value={(answers[currentStep.id] as string[]) ?? []}
+                    onChange={(value) => applyAnswer(currentStep.id, value)}
+                  />
+                ) : null}
+
+                {currentStep.kind === 'substance_use' ? (
+                  <SubstanceStep
+                    question={currentStep}
+                    value={
+                      (answers[currentStep.id] as SubstanceUseAnswer) ?? {
+                        substances: [],
+                        customSubstance: '',
+                        frequency: 'None',
+                      }
+                    }
+                    onChange={(value) => applyAnswer(currentStep.id, value)}
+                  />
+                ) : null}
+              </motion.div>
+            ) : null}
           </AnimatePresence>
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
@@ -566,7 +763,19 @@ export default function CheckInExperience() {
               Back
             </button>
 
-            {currentStep.kind === 'slider' || currentStep.kind === 'multi_select' || currentStep.kind === 'substance_use' ? (
+            {newSystemActive && currentNewStep ? (
+              currentNewStep.responseType === 'multi_choice' || currentNewStep.responseType === 'text_optional' ? (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="rounded-full bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+                >
+                  {stepIndex >= renderedNewQuestions.length - 1 ? "Save check-in" : 'Next question'}
+                </button>
+              ) : (
+                <p className="text-sm text-stone-500">Tap an answer to continue.</p>
+              )
+            ) : currentStep && (currentStep.kind === 'slider' || currentStep.kind === 'multi_select' || currentStep.kind === 'substance_use') ? (
               <button
                 type="button"
                 onClick={goNext}

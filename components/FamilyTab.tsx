@@ -8,23 +8,6 @@ interface FamilyTabProps {
   onAddFamilyMember: (input: { name: string; relation: string; inviteEmail?: string }) => Promise<void>
 }
 
-function Panel({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="rounded-[2rem] border border-stone-100 bg-white p-6 shadow-[0_18px_64px_rgba(76,149,108,0.12)]">
-      <h2 className="font-display text-3xl text-stone-900">{title}</h2>
-      <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">{description}</p>
-      <div className="mt-6">{children}</div>
-    </section>
-  )
-}
 
 export default function FamilyTab({
   familyMembers,
@@ -60,10 +43,14 @@ export default function FamilyTab({
   }
 
   return (
-    <Panel
-      title="Family"
-      description="Invite family members, keep an eye on streaks, and nudge each other to check in without exposing private health details by default."
-    >
+    <section className="space-y-6">
+      <div>
+        <h2 className="font-display text-3xl text-stone-900">Family</h2>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
+          Invite family members, keep an eye on streaks, and nudge each other to check in without exposing private health details by default.
+        </p>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         {familyMembers.map((member) => (
           <article
@@ -88,7 +75,7 @@ export default function FamilyTab({
         ))}
       </div>
 
-      <div className="mt-6 rounded-[1.6rem] border border-dashed border-stone-200 bg-white p-5">
+      <div className="rounded-[1.6rem] border border-dashed border-stone-200 bg-white p-5">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#4c956c]">
           Invite
         </p>
@@ -122,6 +109,6 @@ export default function FamilyTab({
           </button>
         </div>
       </div>
-    </Panel>
+    </section>
   )
 }

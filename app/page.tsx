@@ -293,80 +293,83 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="relative z-20 rounded-[2.5rem] border border-stone-100 bg-white px-6 py-5 shadow-[0_20px_80px_rgba(76,149,108,0.08)] sm:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <button type="button" onClick={() => setTab('today')} className="text-left">
-              <LogoWordmark compact />
-            </button>
+    <>
+      {/* Full-bleed sticky navbar — dark forest green band */}
+      <header className="sticky top-0 z-50 w-full bg-[#1a4332]">
+        <div className="flex items-center justify-between px-6 py-4 sm:px-8">
+          <button type="button" onClick={() => setTab('today')} className="text-left">
+            <LogoWordmark compact inverted />
+          </button>
 
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-              <div className="relative sm:hidden">
-                <label htmlFor="home-tab-select" className="sr-only">
-                  Choose a dashboard section
-                </label>
-                <select
-                  id="home-tab-select"
-                  value={tab}
-                  onChange={(event) => setTab(event.target.value as HomeTab)}
-                  className="w-full appearance-none rounded-[1.2rem] border border-stone-200 bg-[#f0f0f0] px-4 py-3 pr-11 text-sm font-semibold capitalize text-stone-700 outline-none"
-                >
-                  {HOME_TABS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-500">
-                  <SelectChevron />
-                </span>
-              </div>
-
-              <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-[#f0f0f0] p-1 sm:flex">
-                {HOME_TABS.map((item) => {
-                  const active = tab === item
-
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setTab(item)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-                        active
-                          ? 'bg-[linear-gradient(180deg,#56a86e_0%,#4c956c_100%)] text-white shadow-[0_10px_24px_rgba(76,149,108,0.22)]'
-                          : 'text-stone-600 hover:text-stone-900'
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  )
-                })}
-              </nav>
-              <div className="self-start sm:self-auto">
-                <UserAvatar />
-              </div>
+          <div className="flex items-center gap-3">
+            {/* Mobile: native select */}
+            <div className="relative sm:hidden">
+              <label htmlFor="home-tab-select" className="sr-only">
+                Choose a dashboard section
+              </label>
+              <select
+                id="home-tab-select"
+                value={tab}
+                onChange={(event) => setTab(event.target.value as HomeTab)}
+                className="appearance-none rounded-full bg-white/10 px-4 py-2 pr-9 text-sm font-semibold capitalize text-white outline-none"
+              >
+                {HOME_TABS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/60">
+                <SelectChevron />
+              </span>
             </div>
+
+            {/* Desktop: tab buttons directly on the band — no gray pill container */}
+            <nav className="hidden items-center gap-1 sm:flex">
+              {HOME_TABS.map((item) => {
+                const active = tab === item
+
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setTab(item)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
+                      active
+                        ? 'bg-white text-[#1a4332] shadow-sm'
+                        : 'text-white/70 hover:text-white'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                )
+              })}
+            </nav>
+
+            <UserAvatar />
           </div>
-        </header>
+        </div>
+      </header>
 
-        {stateError ? (
-          <div className="rounded-[1.4rem] border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
-            {stateError}
-          </div>
-        ) : null}
+      {/* Main content — full-width, color-differentiated from navbar, no outer card */}
+      <main className="flex-1 bg-background">
+        <div className="mx-auto max-w-6xl px-6 py-10 md:px-8">
+          {stateError ? (
+            <div className="mb-6 rounded-[1.4rem] border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
+              {stateError}
+            </div>
+          ) : null}
 
-        {isLoadingState ? (
-          <section className="rounded-[2.5rem] border border-stone-100 bg-white px-6 py-12 text-center shadow-[0_24px_80px_rgba(76,149,108,0.20)]">
-            <p className="font-display text-3xl text-stone-900">Loading your wellness dashboard</p>
-            <p className="mt-3 text-sm text-stone-500">Pulling check-ins, insights, family, and reminders from the backend.</p>
-          </section>
-        ) : null}
+          {isLoadingState ? (
+            <section className="rounded-[2.5rem] border border-stone-100 bg-white px-6 py-12 text-center shadow-[0_24px_80px_rgba(76,149,108,0.20)]">
+              <p className="font-display text-3xl text-stone-900">Loading your wellness dashboard</p>
+              <p className="mt-3 text-sm text-stone-500">Pulling check-ins, insights, family, and reminders from the backend.</p>
+            </section>
+          ) : null}
 
-        {!isLoadingState && tab === 'today' ? (
-          <HomeTabPanel>
-            <div className="rounded-[2.8rem] border border-stone-100 bg-white px-6 py-7 shadow-[0_28px_90px_rgba(76,149,108,0.20)] sm:px-8 sm:py-9">
-              <div className="p-5">
+          {!isLoadingState && tab === 'today' ? (
+            <HomeTabPanel>
+              <div className="mb-6">
                 <p className="font-semibold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#888888' }}>Today&apos;s Check-In</p>
                 <h1 className="font-display mt-2 max-w-3xl text-[2.5rem] font-semibold leading-tight text-stone-900">
                   {greeting}
@@ -375,23 +378,22 @@ export default function Home() {
                   {new Date(`${todayKey}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
+
               {familyNudgeCandidate ? (
-                <div className="mt-6 rounded-[1.6rem] border border-[#b8dcc9] bg-[#e0f5ec] px-5 py-4">
+                <div className="mb-4 rounded-[1.6rem] border border-[#b8dcc9] bg-[#e0f5ec] px-5 py-4">
                   <p className="text-sm font-semibold text-[#2c6e49]">
                     {familyNudgeCandidate.name} checked in. Your turn is still open.
                   </p>
                 </div>
               ) : null}
 
-              <div className="mt-6">
-                <QuestionnaireCard
-                  title={activeCheckInTitle}
-                  status={activeCheckInStatus}
-                  href={activeCheckInHref}
-                  onVoiceTap={() => setVoiceCheckinPeriod(activeDailyPeriod)}
-                  showVoiceButton={canUseVoiceCheckIn}
-                />
-              </div>
+              <QuestionnaireCard
+                title={activeCheckInTitle}
+                status={activeCheckInStatus}
+                href={activeCheckInHref}
+                onVoiceTap={() => setVoiceCheckinPeriod(activeDailyPeriod)}
+                showVoiceButton={canUseVoiceCheckIn}
+              />
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <article className="rounded-[1.8rem] border border-stone-100 bg-white p-5">
@@ -418,31 +420,31 @@ export default function Home() {
                   </div>
                 </article>
               </div>
-            </div>
-          </HomeTabPanel>
-        ) : null}
+            </HomeTabPanel>
+          ) : null}
 
-        {!isLoadingState && tab === 'insights' ? (
-          <HomeTabPanel>
-            <InsightsDashboard state={state} />
-          </HomeTabPanel>
-        ) : null}
+          {!isLoadingState && tab === 'insights' ? (
+            <HomeTabPanel>
+              <InsightsDashboard state={state} />
+            </HomeTabPanel>
+          ) : null}
 
-        {!isLoadingState && tab === 'learn' ? (
-          <HomeTabPanel>
-            <LearnTab />
-          </HomeTabPanel>
-        ) : null}
+          {!isLoadingState && tab === 'learn' ? (
+            <HomeTabPanel>
+              <LearnTab />
+            </HomeTabPanel>
+          ) : null}
 
-        {!isLoadingState && tab === 'family' ? (
-          <HomeTabPanel>
-            <FamilyTab
-              familyMembers={state.familyMembers}
-              onAddFamilyMember={handleAddFamilyMember}
-            />
-          </HomeTabPanel>
-        ) : null}
-      </div>
+          {!isLoadingState && tab === 'family' ? (
+            <HomeTabPanel>
+              <FamilyTab
+                familyMembers={state.familyMembers}
+                onAddFamilyMember={handleAddFamilyMember}
+              />
+            </HomeTabPanel>
+          ) : null}
+        </div>
+      </main>
 
       <AnimatePresence>
         {voiceCheckinPeriod && (
@@ -487,6 +489,6 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-    </main>
+    </>
   )
 }
